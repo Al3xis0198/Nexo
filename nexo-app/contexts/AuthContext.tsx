@@ -104,9 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user])
 
   const signOut = useCallback(async () => {
-    const supabase = createClient()
     try {
-      await supabase.auth.signOut()
+      await fetch('/auth/logout', { method: 'POST' })
     } catch (err) {
       console.error('[AuthContext] Sign out error:', err)
     }

@@ -15,27 +15,6 @@ const syncBalanceToSupabase = async (newBalance: number) => {
   }
 };
 
-/** Reads the current balance from Supabase, applies delta, writes back. Returns new balance. */
-const adjustBalanceInSupabase = async (delta: number): Promise<number | null> => {
-  try {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data } = await (supabase as any)
-      .from('profiles')
-      .select('balance')
-      .eq('id', user.id)
-      .single();
-    if (!data) return null;
-    const newBalance = Math.max(0, Number(data.balance) + delta);
-    await (supabase as any).from('profiles').update({ balance: newBalance }).eq('id', user.id);
-    return newBalance;
-  } catch (err) {
-    console.error('Failed to adjust balance in Supabase:', err);
-    return null;
-  }
-};
-
 export type Position = {
   id: string;
   symbol: string;
@@ -73,17 +52,12 @@ interface TradingState {
 export const useTradingStore = create<TradingState>()(
   persist(
     (set) => ({
+      // Balance IS persisted so deposit/withdraw always operate on the correct value.
+      // AuthContext always overrides this with the Supabase value on every login/page load,
+      // so admin DB changes are reflected whenever the user refreshes or logs back in.
       balance: 0,
       positions: [],
-      transactions: [
-        {
-          id: Math.random().toString(36).substring(7),
-          type: 'deposit',
-          amount: 10000,
-          date: new Date().toISOString(),
-          description: 'Initial Deposit',
-        },
-      ],
+      transactions: [],
 
       openPosition: (pos) => {
         let success = false;
@@ -140,7 +114,7 @@ export const useTradingStore = create<TradingState>()(
         };
       }),
 
-      deposit: (amount) => {
+      deposit: (amount) => set((state) => {
         const transaction: Transaction = {
           id: Math.random().toString(36).substring(7),
           type: 'deposit',
@@ -148,19 +122,18 @@ export const useTradingStore = create<TradingState>()(
           date: new Date().toISOString(),
           description: 'Deposit',
         };
-        // Reads fresh balance from Supabase, adds amount, writes back.
-        // This prevents overwriting the real balance with stale local state.
-        adjustBalanceInSupabase(amount).then((newBalance) => {
-          if (newBalance !== null) {
-            set((state) => ({
-              balance: newBalance,
-              transactions: [transaction, ...state.transactions],
-            }));
-          }
-        });
-      },
+        // state.balance here is always correct because AuthContext loads it from
+        // Supabase on every login/page load before the user can interact with the wallet.
+        const nextBalance = state.balance + amount;
+        syncBalanceToSupabase(nextBalance);
+        return {
+          balance: nextBalance,
+          transactions: [transaction, ...state.transactions],
+        };
+      }),
 
-      withdraw: (amount) => {
+      withdraw: (amount) => set((state) => {
+        if (state.balance < amount) return state;
         const transaction: Transaction = {
           id: Math.random().toString(36).substring(7),
           type: 'withdrawal',
@@ -168,16 +141,13 @@ export const useTradingStore = create<TradingState>()(
           date: new Date().toISOString(),
           description: 'Withdrawal',
         };
-        // Reads fresh balance from Supabase, subtracts amount, writes back.
-        adjustBalanceInSupabase(-amount).then((newBalance) => {
-          if (newBalance !== null) {
-            set((state) => ({
-              balance: newBalance,
-              transactions: [transaction, ...state.transactions],
-            }));
-          }
-        });
-      },
+        const nextBalance = state.balance - amount;
+        syncBalanceToSupabase(nextBalance);
+        return {
+          balance: nextBalance,
+          transactions: [transaction, ...state.transactions],
+        };
+      }),
 
       adminAdjustBalance: (_userId, newBalance, note) => set((state) => {
         const diff = newBalance - state.balance;
@@ -196,13 +166,8 @@ export const useTradingStore = create<TradingState>()(
       }),
     }),
     {
+      // Persist everything including balance so deposit/withdraw always have a real base value.
       name: 'nexotrading-storage',
-      // Only persist positions and transactions, NOT balance.
-      // Balance always comes from Supabase on login so admin changes are reflected immediately.
-      partialize: (state) => ({
-        positions: state.positions,
-        transactions: state.transactions,
-      }),
     }
   )
 );

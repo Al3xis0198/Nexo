@@ -51,7 +51,7 @@ interface TradingState {
 export const useTradingStore = create<TradingState>()(
   persist(
     (set) => ({
-      balance: 10000.0,
+      balance: 0,
       positions: [],
       transactions: [
         {
@@ -167,6 +167,14 @@ export const useTradingStore = create<TradingState>()(
         };
       }),
     }),
-    { name: 'nexotrading-storage' }
+    {
+      name: 'nexotrading-storage',
+      // Only persist positions and transactions, NOT balance.
+      // Balance always comes from Supabase on login so admin changes are reflected immediately.
+      partialize: (state) => ({
+        positions: state.positions,
+        transactions: state.transactions,
+      }),
+    }
   )
 );

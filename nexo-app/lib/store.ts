@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createClient } from './supabase/client';
 
+/** Writes an absolute balance value to Supabase */
 const syncBalanceToSupabase = async (newBalance: number) => {
   try {
     const supabase = createClient();
@@ -11,6 +12,27 @@ const syncBalanceToSupabase = async (newBalance: number) => {
     }
   } catch (err) {
     console.error('Failed to sync balance to Supabase:', err);
+  }
+};
+
+/** Reads the current balance from Supabase, applies delta, writes back. Returns new balance. */
+const adjustBalanceInSupabase = async (delta: number): Promise<number | null> => {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await (supabase as any)
+      .from('profiles')
+      .select('balance')
+      .eq('id', user.id)
+      .single();
+    if (!data) return null;
+    const newBalance = Math.max(0, Number(data.balance) + delta);
+    await (supabase as any).from('profiles').update({ balance: newBalance }).eq('id', user.id);
+    return newBalance;
+  } catch (err) {
+    console.error('Failed to adjust balance in Supabase:', err);
+    return null;
   }
 };
 
@@ -118,7 +140,7 @@ export const useTradingStore = create<TradingState>()(
         };
       }),
 
-      deposit: (amount) => set((state) => {
+      deposit: (amount) => {
         const transaction: Transaction = {
           id: Math.random().toString(36).substring(7),
           type: 'deposit',
@@ -126,16 +148,19 @@ export const useTradingStore = create<TradingState>()(
           date: new Date().toISOString(),
           description: 'Deposit',
         };
-        const nextBalance = state.balance + amount;
-        syncBalanceToSupabase(nextBalance);
-        return {
-          balance: nextBalance,
-          transactions: [transaction, ...state.transactions],
-        };
-      }),
+        // Reads fresh balance from Supabase, adds amount, writes back.
+        // This prevents overwriting the real balance with stale local state.
+        adjustBalanceInSupabase(amount).then((newBalance) => {
+          if (newBalance !== null) {
+            set((state) => ({
+              balance: newBalance,
+              transactions: [transaction, ...state.transactions],
+            }));
+          }
+        });
+      },
 
-      withdraw: (amount) => set((state) => {
-        if (state.balance < amount) return state;
+      withdraw: (amount) => {
         const transaction: Transaction = {
           id: Math.random().toString(36).substring(7),
           type: 'withdrawal',
@@ -143,13 +168,16 @@ export const useTradingStore = create<TradingState>()(
           date: new Date().toISOString(),
           description: 'Withdrawal',
         };
-        const nextBalance = state.balance - amount;
-        syncBalanceToSupabase(nextBalance);
-        return {
-          balance: nextBalance,
-          transactions: [transaction, ...state.transactions],
-        };
-      }),
+        // Reads fresh balance from Supabase, subtracts amount, writes back.
+        adjustBalanceInSupabase(-amount).then((newBalance) => {
+          if (newBalance !== null) {
+            set((state) => ({
+              balance: newBalance,
+              transactions: [transaction, ...state.transactions],
+            }));
+          }
+        });
+      },
 
       adminAdjustBalance: (_userId, newBalance, note) => set((state) => {
         const diff = newBalance - state.balance;

@@ -1,0 +1,37 @@
+# Root level gitignore for NexoTrading monorepo
+
+# ── nexo-app specific ────────────────────────────────────────────────────────
+
+# Dependencies
+nexo-app/node_modules/
+
+# Build output
+nexo-app/.next/
+nexo-app/out/
+nexo-app/build/
+
+# Environment variables (NEVER commit these)
+nexo-app/.env
+nexo-app/.env.local
+nexo-app/.env*.local
+
+# TypeScript build info
+nexo-app/*.tsbuildinfo
+nexo-app/next-env.d.ts
+
+# Debug logs
+nexo-app/npm-debug.log*
+nexo-app/yarn-debug.log*
+nexo-app/yarn-error.log*
+nexo-app/.pnpm-debug.log*
+
+# Vercel
+nexo-app/.vercel/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

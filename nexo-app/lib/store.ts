@@ -7,7 +7,7 @@ const syncBalanceToSupabase = async (newBalance: number) => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id);
+      await (supabase as any).from('profiles').update({ balance: newBalance }).eq('id', user.id);
     }
   } catch (err) {
     console.error('Failed to sync balance to Supabase:', err);

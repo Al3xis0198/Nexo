@@ -97,8 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient()
     const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
     if (data) {
-      setProfile(data as Profile)
-      useTradingStore.setState({ balance: data.balance })
+      const profile = data as Profile
+      setProfile(profile)
+      useTradingStore.setState({ balance: profile.balance })
     }
   }, [user])
 

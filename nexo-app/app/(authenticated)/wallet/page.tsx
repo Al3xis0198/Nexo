@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from 'react';
 import { useTradingStore } from '@/lib/store';
@@ -385,7 +385,7 @@ export default function WalletPage() {
           boxShadow: '0 10px 30px rgba(0,0,0,0.15)'
         }}>
           {transactions.length === 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', itemsCenter: 'center', justifyContent: 'center', padding: '64px 20px', textAlign: 'center', color: '#848E9C' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 20px', textAlign: 'center', color: '#848E9C' }}>
               <WalletIcon size={40} style={{ margin: '0 auto 12px', opacity: 0.15 }} />
               <p style={{ margin: 0, fontSize: '0.9rem' }}>No transactions yet</p>
             </div>
@@ -401,7 +401,7 @@ export default function WalletPage() {
                     <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right' }}>Status</th>
                   </tr>
                 </thead>
-                <tbody style={{ divideY: '1px solid rgba(255,255,255,0.06)' }}>
+                <tbody style={{}}>
                   {transactions.map((tx, idx) => (
                     <tr key={tx.id} style={{ 
                       borderBottom: idx < transactions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',

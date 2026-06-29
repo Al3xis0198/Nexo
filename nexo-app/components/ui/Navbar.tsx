@@ -84,13 +84,7 @@ export default function Navbar() {
           <input type="text" placeholder={t('app.search')} />
         </div>
 
-        {isDemoMode && (
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
-            style={{ background: 'rgba(240,185,11,0.12)', color: 'var(--accent)', border: '1px solid rgba(240,185,11,0.25)' }}>
-            <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
-            {t('app.demoMode')}
-          </div>
-        )}
+
       </div>
 
       {/* Right */}

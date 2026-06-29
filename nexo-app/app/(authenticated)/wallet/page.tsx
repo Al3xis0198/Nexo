@@ -58,7 +58,7 @@ export default function WalletPage() {
       {/* Header section */}
       <div>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#EAECEF', margin: '0 0 4px 0' }}>Fiat and Spot</h1>
-        <p style={{ fontSize: '0.88rem', color: '#848E9C', margin: 0 }}>Deposit and withdraw fiat and crypto seamlessly in your demo account.</p>
+        <p style={{ fontSize: '0.88rem', color: '#848E9C', margin: 0 }}>Deposit and withdraw fiat and crypto seamlessly in your account.</p>
       </div>
 
       {/* Main Grid */}

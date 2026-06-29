@@ -105,7 +105,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
 
     // Navbar app
     'app.balance':      'Balance',
-    'app.demoMode':     'Modo Demo',
+    'app.demoMode':     'Modo Prueba',
     'app.profile':      'Perfil',
     'app.wallet':       'Billetera',
     'app.adminPanel':   'Panel Admin',
@@ -122,12 +122,11 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     'wal.sub':          'Gestiona tus fondos y ve el historial de transacciones.',
     'wal.available':    'Balance Disponible',
     'wal.ready':        'Listo para operar',
-    'wal.deposit':      'Depósito (Demo)',
-    'wal.withdraw':     'Retiro (Demo)',
-    'wal.amount':       'Monto (USD)',
+    'wal.deposit':      'Depósito',
+    'wal.withdraw':     'Retiro',    'wal.amount':       'Monto (USD)',
     'wal.confirm':      'Confirmar Depósito',
     'wal.requestWith':  'Solicitar Retiro',
-    'wal.note':         'Nota: Esto es una plataforma demo. No se mueven fondos reales.',
+    'wal.note':         'Nota: Por favor verifica tus datos antes de continuar.',
     'wal.history':      'Todas las Transacciones',
     'wal.noTx':         'Aún no hay transacciones.',
     'wal.date':         'Fecha y Hora',
@@ -194,7 +193,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     'trade.more':       'más.',
     'trade.enterAmt':   'Ingresa un Monto',
     'trade.insufBal':   'Balance Insuficiente',
-    'trade.demo':       'Plataforma demo — sin fondos reales. El margen se debita al abrir.',
+    'trade.demo':       'El margen se debita al abrir.',
 
     // Confirm modal
     'conf.title':       'Confirmar Orden',
@@ -297,7 +296,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
 
     // Navbar app
     'app.balance':      'Balance',
-    'app.demoMode':     'Demo Mode',
+    'app.demoMode':     'Test Mode',
     'app.profile':      'Profile',
     'app.wallet':       'Wallet',
     'app.adminPanel':   'Admin Panel',
@@ -314,12 +313,12 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     'wal.sub':          'Manage your funds and view transaction history.',
     'wal.available':    'Available Balance',
     'wal.ready':        'Ready for trading',
-    'wal.deposit':      'Deposit (Demo)',
-    'wal.withdraw':     'Withdraw (Demo)',
+    'wal.deposit':      'Deposit',
+    'wal.withdraw':     'Withdraw',
     'wal.amount':       'Amount (USD)',
     'wal.confirm':      'Confirm Deposit',
     'wal.requestWith':  'Request Withdrawal',
-    'wal.note':         'Note: This is a demo platform. No real funds are moved.',
+    'wal.note':         'Note: Please verify your details before proceeding.',
     'wal.history':      'All Transactions',
     'wal.noTx':         'No transactions yet.',
     'wal.date':         'Date & Time',
@@ -386,7 +385,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     'trade.more':       'more.',
     'trade.enterAmt':   'Enter Amount',
     'trade.insufBal':   'Insufficient Balance',
-    'trade.demo':       'Demo platform — no real funds. Margin debited on open.',
+    'trade.demo':       'Margin debited on open.',
 
     // Confirm modal
     'conf.title':       'Confirm Order',

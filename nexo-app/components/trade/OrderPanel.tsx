@@ -417,7 +417,7 @@ export default function OrderPanel({ symbol, currentPrice }: OrderPanelProps) {
           {/* Disclaimer */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.7rem', color: '#5E6673', textAlign: 'center', justifyContent: 'center' }}>
             <Info size={11} />
-            Demo platform — no real funds. Margin debited on open.
+            Margin debited on open.
           </div>
         </form>
       </div>

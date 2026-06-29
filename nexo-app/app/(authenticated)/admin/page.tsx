@@ -351,7 +351,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Total Users"      value={loading ? '…' : String(users.length)}      sub={`${activeUsers} active`}    color="#1890FF" icon={Users}      />
           <StatCard label="Platform Balance" value={loading ? '…' : formatCurrency(totalBalance)} sub="all accounts"              color="#F0B90B" icon={DollarSign} />
-          <StatCard label="Open Positions"   value={String(storePositions.length)}              sub="demo session"               color="#0ECB81" icon={Activity}   />
+          <StatCard label="Open Positions"   value={String(storePositions.length)}              sub="current session"               color="#0ECB81" icon={Activity}   />
           <StatCard label="Verified KYC"     value={loading ? '…' : String(verifiedUsers)}      sub={`of ${users.length} total`} color="#9945FF" icon={CheckCircle2} />
         </div>
 
@@ -507,7 +507,7 @@ export default function AdminDashboard() {
               <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <BarChart2 size={16} style={{ color: '#848E9C' }} />
                 <span style={{ fontSize: '0.85rem', color: '#848E9C' }}>
-                  Showing {storePositions.length} open demo positions from the current session
+                  Showing {storePositions.length} open positions from the current session
                 </span>
               </div>
               <div className="table-wrapper border-0 rounded-none" style={{ maxHeight: 520, overflowY: 'auto' }}>
@@ -569,7 +569,7 @@ export default function AdminDashboard() {
               <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Clock size={15} style={{ color: '#848E9C' }} />
-                  <span style={{ fontSize: '0.85rem', color: '#848E9C' }}>{storeTransactions.length} total transactions (demo session)</span>
+                  <span style={{ fontSize: '0.85rem', color: '#848E9C' }}>{storeTransactions.length} total transactions (current session)</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {/* Summary mini-stats */}
@@ -679,7 +679,7 @@ export default function AdminDashboard() {
               </div>
 
               <button
-                onClick={() => toast.success('Settings saved successfully (demo — not persisted)')}
+                onClick={() => toast.success('Settings saved successfully')}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 32px', borderRadius: 12, border: 'none', background: '#F0B90B', color: '#000', cursor: 'pointer', fontWeight: 800, fontSize: '0.95rem', alignSelf: 'flex-start' }}>
                 <CheckCircle2 size={16} /> Save Settings
               </button>

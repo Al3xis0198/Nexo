@@ -59,7 +59,7 @@ export const useTradingStore = create<TradingState>()(
           type: 'deposit',
           amount: 10000,
           date: new Date().toISOString(),
-          description: 'Initial Demo Deposit',
+          description: 'Initial Deposit',
         },
       ],
 
@@ -124,7 +124,7 @@ export const useTradingStore = create<TradingState>()(
           type: 'deposit',
           amount: amount,
           date: new Date().toISOString(),
-          description: 'Demo Deposit',
+          description: 'Deposit',
         };
         const nextBalance = state.balance + amount;
         syncBalanceToSupabase(nextBalance);
@@ -141,7 +141,7 @@ export const useTradingStore = create<TradingState>()(
           type: 'withdrawal',
           amount: -amount,
           date: new Date().toISOString(),
-          description: 'Demo Withdrawal',
+          description: 'Withdrawal',
         };
         const nextBalance = state.balance - amount;
         syncBalanceToSupabase(nextBalance);

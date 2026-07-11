@@ -9,6 +9,7 @@ import {
   DollarSign, Zap, Target, History, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useBinanceLivePrice } from '@/lib/hooks/useBinanceMarket';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Direction = 'call' | 'put';
@@ -135,17 +136,7 @@ function OptionCard({ option }: { option: BinaryOption }) {
 }
 
 // ── Simulated live prices ─────────────────────────────────────────────────────
-function useLivePrice(basePrice: number) {
-  const [price, setPrice] = useState(basePrice);
-  useEffect(() => {
-    setPrice(basePrice);
-    const id = setInterval(() => {
-      setPrice(p => p * (1 + (Math.random() - 0.49) * 0.001));
-    }, 800);
-    return () => clearInterval(id);
-  }, [basePrice]);
-  return price;
-}
+// Removido a favor de useBinanceLivePrice
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function BinaryPage() {
@@ -160,7 +151,10 @@ export default function BinaryPage() {
   const [expiry, setExpiry]        = useState<Expiry>(EXPIRIES[1]);
   const [submitting, setSubmitting] = useState(false);
 
-  const livePrice = useLivePrice(selectedAsset.base);
+  const rawLivePrice = useBinanceLivePrice(selectedAsset.symbol);
+  // Fallback to base price initially until websocket connects
+  const livePrice = rawLivePrice || selectedAsset.base;
+
   const payout    = PAYOUTS[expiry.seconds] ?? 0.85;
   const numAmount = parseFloat(amount) || 0;
   const potential = numAmount * (1 + payout);

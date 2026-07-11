@@ -17,6 +17,7 @@ import { analyzeCandles, getSignalDisplay } from '@/lib/analysis/signals'
 import type { Candle } from '@/lib/analysis/indicators'
 import type { Timeframe } from '@/components/charts/TradingChart'
 import { useParams } from 'next/navigation'
+import { useBinanceMarket } from '@/lib/hooks/useBinanceMarket'
 
 const SignalIconMap: Record<string, React.ElementType> = {
   'rocket':        Rocket,
@@ -35,84 +36,6 @@ const TradingChart = dynamic(() => import('@/components/charts/TradingChart'), {
   ),
 })
 
-// ── Timeframe intervals in seconds ────────────────────────────────────────────
-const TF_SECONDS: Record<Timeframe, number> = {
-  '1m':  60,
-  '5m':  300,
-  '15m': 900,
-  '1H':  3600,
-  '4H':  14400,
-  '1D':  86400,
-}
-
-// ── Generate realistic historical candles ─────────────────────────────────────
-function generateCandles(basePrice: number, count: number, intervalSec: number): Candle[] {
-  const candles: Candle[] = []
-  let price = basePrice
-
-  // Volatility scales with timeframe
-  const volatility = intervalSec <= 60 ? 0.0015
-    : intervalSec <= 300 ? 0.003
-    : intervalSec <= 900 ? 0.005
-    : intervalSec <= 3600 ? 0.008
-    : intervalSec <= 14400 ? 0.015
-    : 0.025
-
-  const nowSec = Math.floor(Date.now() / 1000)
-  const startSec = nowSec - count * intervalSec
-
-  for (let i = 0; i < count; i++) {
-    const time = startSec + i * intervalSec
-    const open = price
-
-    // Multi-point simulation within candle for realistic wicks
-    const points = 8
-    let hi = open, lo = open
-    let cur = open
-    for (let j = 0; j < points; j++) {
-      const move = cur * volatility * (Math.random() - 0.48)
-      cur += move
-      if (cur > hi) hi = cur
-      if (cur < lo) lo = cur
-    }
-
-    // Add extra wick noise
-    hi *= 1 + Math.random() * volatility * 0.5
-    lo *= 1 - Math.random() * volatility * 0.5
-
-    const close = cur
-    const volume = Math.random() * 1_000_000 + 200_000
-
-    candles.push({ time: time as any, open, high: hi, low: lo, close, volume } as Candle & { volume: number })
-    price = close
-  }
-
-  return candles
-}
-
-// ── Resample candles by timeframe ─────────────────────────────────────────────
-function resampleCandles(candles: Candle[], intervalSec: number): Candle[] {
-  if (candles.length === 0) return []
-  const groups: Record<number, Candle[]> = {}
-
-  for (const c of candles) {
-    const bucket = Math.floor((c.time as number) / intervalSec) * intervalSec
-    if (!groups[bucket]) groups[bucket] = []
-    groups[bucket].push(c)
-  }
-
-  return Object.entries(groups)
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([time, group]) => ({
-      time: Number(time) as any,
-      open:   group[0].open,
-      high:   Math.max(...group.map(g => g.high)),
-      low:    Math.min(...group.map(g => g.low)),
-      close:  group[group.length - 1].close,
-      volume: group.reduce((s, g) => s + ((g as any).volume ?? 0), 0),
-    } as Candle))
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 export default function TradePage() {
   const params = useParams()
@@ -121,99 +44,23 @@ export default function TradePage() {
     ? decodeURIComponent(rawSymbol).replace('-', '/').toUpperCase()
     : 'BTC/USD'
 
-  const [price, setPrice]           = useState(0)
-  const [prevPrice, setPrevPrice]   = useState(0)
-  const [baseCandles, setBaseCandles] = useState<Candle[]>([])   // 1-min base data
-  const [candles, setCandles]       = useState<Candle[]>([])     // resampled for TF
-  const [loading, setLoading]       = useState(true)
-  const [activeTab, setActiveTab]   = useState<'positions' | 'history'>('positions')
   const [timeframe, setTimeframe]   = useState<Timeframe>('1H')
+
+  const { candles, currentPrice: price, loading } = useBinanceMarket(symbol, timeframe)
+  
+  // Guardamos el precio anterior para saber si subió o bajó
+  const [prevPrice, setPrevPrice] = useState(0)
+  useEffect(() => {
+    if (price !== prevPrice && price > 0) {
+      setPrevPrice(price)
+    }
+  }, [price, prevPrice])
+
+  const [activeTab, setActiveTab]   = useState<'positions' | 'history'>('positions')
 
   const positions     = useTradingStore(s => s.positions)
   const closePosition = useTradingStore(s => s.closePosition)
   const activePositions = positions.filter(p => p.symbol === symbol)
-
-  // ── Load historical data ──────────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false
-    const fetchCandles = async () => {
-      setLoading(true)
-      try {
-        const res = await fetch(`/api/prices/${encodeURIComponent(symbol.replace('/', '-'))}?count=500`)
-        if (res.ok && !cancelled) {
-          const data: Candle[] = await res.json()
-          setBaseCandles(data)
-          const lastClose = data.at(-1)?.close ?? 0
-          setPrice(lastClose)
-          setPrevPrice(lastClose)
-        }
-      } catch {
-        // If API fails, generate mock data
-        if (!cancelled) {
-          const mockPrice = symbol.startsWith('BTC') ? 67000
-            : symbol.startsWith('ETH') ? 3500
-            : symbol.startsWith('XAU') ? 2345
-            : 100
-          const generated = generateCandles(mockPrice, 500, 60)
-          setBaseCandles(generated)
-          const lastClose = generated.at(-1)?.close ?? mockPrice
-          setPrice(lastClose)
-          setPrevPrice(lastClose)
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    fetchCandles()
-    return () => { cancelled = true }
-  }, [symbol])
-
-  // ── Resample when timeframe or base data changes ──────────────────────────
-  useEffect(() => {
-    if (baseCandles.length === 0) return
-    const intervalSec = TF_SECONDS[timeframe]
-    const resampled = resampleCandles(baseCandles, intervalSec)
-    setCandles(resampled)
-  }, [baseCandles, timeframe])
-
-  // ── Real-time price simulation ────────────────────────────────────────────
-  useEffect(() => {
-    if (price === 0) return
-    const interval = setInterval(() => {
-      setPrice(prev => {
-        const move = prev * 0.0006 * (Math.random() - 0.48)
-        const next = prev + move
-        setPrevPrice(prev)
-
-        // Update last base candle (1m)
-        setBaseCandles(c => {
-          if (!c.length) return c
-          const nowSec = Math.floor(Date.now() / 1000)
-          const last = { ...c[c.length - 1] }
-          const lastTime = last.time as number
-          const newMinBucket = Math.floor(nowSec / 60) * 60
-
-          if (newMinBucket > lastTime) {
-            // New 1m candle
-            return [...c, {
-              time:   newMinBucket as any,
-              open:   prev, high: Math.max(prev, next),
-              low:    Math.min(prev, next), close: next,
-              volume: Math.random() * 500_000 + 100_000,
-            } as Candle]
-          } else {
-            // Update current candle
-            last.close = next
-            last.high  = Math.max(last.high, next)
-            last.low   = Math.min(last.low, next)
-            return [...c.slice(0, -1), last]
-          }
-        })
-        return next
-      })
-    }, 1500)
-    return () => clearInterval(interval)
-  }, [price])
 
   // ── Technical analysis ────────────────────────────────────────────────────
   const analysis = candles.length > 50 ? analyzeCandles(candles) : null

@@ -63,6 +63,10 @@ interface TradingState {
   binaryOptions: BinaryOption[];
   _currentUserId: string | null;
   loadingData: boolean;
+  platformConfig: {
+    fee: number;
+    maxLeverage: number;
+  };
 
   openPosition: (position: Omit<Position, 'id' | 'openedAt'>) => Promise<boolean>;
   closePosition: (id: string, closePrice: number, pnl: number) => Promise<void>;
@@ -81,6 +85,7 @@ interface TradingState {
   
   initForUser: (userId: string, supabaseBalance: number) => Promise<void>;
   resetStore: () => void;
+  updatePlatformConfig: (fee: number, maxLeverage: number) => Promise<boolean>;
 }
 
 const EMPTY_STATE = {
@@ -90,6 +95,10 @@ const EMPTY_STATE = {
   binaryOptions: [] as BinaryOption[],
   _currentUserId: null as string | null,
   loadingData: false,
+  platformConfig: {
+    fee: 0.1,
+    maxLeverage: 100,
+  },
 };
 
 export const useTradingStore = create<TradingState>()(
@@ -104,6 +113,12 @@ export const useTradingStore = create<TradingState>()(
         const posRes: any = await supabase.from('positions').select('*').eq('user_id', userId).eq('status', 'open').order('opened_at', { ascending: false });
         const txRes: any = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(100);
         const binRes: any = await supabase.from('binary_options').select('*').eq('user_id', userId).order('opened_at', { ascending: false }).limit(50);
+        const cfgRes: any = await supabase.from('platform_settings').select('*').single();
+
+        let cfg = { fee: 0.1, maxLeverage: 100 };
+        if (cfgRes.data) {
+          cfg = { fee: Number(cfgRes.data.fee), maxLeverage: Number(cfgRes.data.max_leverage) };
+        }
 
         const positions: Position[] = (posRes.data || []).map((p: any) => ({
           id: p.id,
@@ -141,7 +156,7 @@ export const useTradingStore = create<TradingState>()(
           pnl: b.pnl || undefined,
         }));
 
-        set({ positions, transactions, binaryOptions });
+        set({ positions, transactions, binaryOptions, platformConfig: cfg });
       } catch (err) {
         console.error('Failed to load user data:', err);
       } finally {
@@ -150,7 +165,20 @@ export const useTradingStore = create<TradingState>()(
     },
 
     resetStore: () => {
-      set({ ...EMPTY_STATE });
+      set({ ...EMPTY_STATE, platformConfig: get().platformConfig });
+    },
+
+    updatePlatformConfig: async (fee, maxLeverage) => {
+      const supabase = createClient();
+      try {
+        const { error } = await (supabase as any).from('platform_settings').upsert({ id: 1, fee, max_leverage: maxLeverage });
+        if (error) throw error;
+        set({ platformConfig: { fee, maxLeverage } });
+        return true;
+      } catch (err) {
+        console.error('Failed to update config:', err);
+        return false;
+      }
     },
 
     openPosition: async (pos) => {

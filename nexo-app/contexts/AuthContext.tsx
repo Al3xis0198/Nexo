@@ -36,6 +36,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Hydrate admin status synchronously if possible
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const cachedAdmin = localStorage.getItem('nexo_isAdmin') === 'true'
+      if (cachedAdmin) setIsAdmin(true)
+    }
+  }, [])
+
   useEffect(() => {
     const supabase = createClient()
 
@@ -59,7 +67,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         useTradingStore.getState().initForUser(userId, profileData.balance)
       }
       if (rRes.data) {
-        setIsAdmin(rRes.data.some((r: { role: string }) => r.role === 'admin'))
+        const adminStatus = rRes.data.some((r: { role: string }) => r.role === 'admin')
+        setIsAdmin(adminStatus)
+        if (typeof window !== 'undefined') {
+          if (adminStatus) localStorage.setItem('nexo_isAdmin', 'true')
+          else localStorage.removeItem('nexo_isAdmin')
+        }
       }
     }
 
@@ -87,10 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           await loadProfile(session.user.id)
         } else {
-          // ── LOGOUT: limpiar TODO el estado local del store ─────────────
           useTradingStore.getState().resetStore()
           setProfile(null)
           setIsAdmin(false)
+          if (typeof window !== 'undefined') localStorage.removeItem('nexo_isAdmin')
         }
         setIsLoading(false)
       }
@@ -122,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setProfile(null)
     setIsAdmin(false)
+    if (typeof window !== 'undefined') localStorage.removeItem('nexo_isAdmin')
   }, [])
 
   return (

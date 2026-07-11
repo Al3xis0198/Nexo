@@ -3,12 +3,7 @@
    Tema oscuro estilo Binance con tokens semánticos
    ============================================================ */
 
-@import "tailwindcss";
 
-@source "../components/**/*.{js,ts,jsx,tsx}";
-@source "./**/*.{js,ts,jsx,tsx}";
-@source "./(authenticated)/**/*.{js,ts,jsx,tsx}";
-@source "./\\(authenticated\\)/**/*.{js,ts,jsx,tsx}";
 
 /* ===== TOKENS DE COLOR ===== */
 :root {

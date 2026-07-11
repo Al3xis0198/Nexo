@@ -271,12 +271,15 @@ function StatusBadge({ status }: { status: TransactionStatus }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function WalletPage() {
   const balance      = useTradingStore(state => state.balance);
-  const transactions = useTradingStore(state => state.transactions);
+  const transactions = useTradingStore(s => s.transactions);
+  const binaryOptions = useTradingStore(s => s.binaryOptions);
+  const positions = useTradingStore(s => s.positions);
   const deposit      = useTradingStore(state => state.deposit);
   const withdraw     = useTradingStore(state => state.withdraw);
 
   const [amount, setAmount]           = useState('');
   const [activeTab, setActiveTab]     = useState<'deposit' | 'withdraw'>('deposit');
+  const [historyTab, setHistoryTab] = useState<'transactions' | 'binary' | 'margin'>('transactions');
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
   const [showBalance, setShowBalance] = useState(true);
   const [withdrawalModal, setWithdrawalModal] = useState<number | null>(null);
@@ -480,61 +483,155 @@ export default function WalletPage() {
 
         {/* Transaction History */}
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <History size={18} style={{ color: '#F0B90B' }} />
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#EAECEF', margin: 0 }}>Recent Transactions</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <History size={18} style={{ color: '#F0B90B' }} />
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#EAECEF', margin: 0 }}>Mi Historial</h2>
+            </div>
+            <div style={{ display: 'flex', gap: 6, background: 'rgba(0,0,0,0.2)', padding: 4, borderRadius: 8 }}>
+              <button onClick={() => setHistoryTab('transactions')} style={{ padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, border: 'none', cursor: 'pointer', background: historyTab === 'transactions' ? 'rgba(255,255,255,0.1)' : 'transparent', color: historyTab === 'transactions' ? '#EAECEF' : '#848E9C' }}>Financiero</button>
+              <button onClick={() => setHistoryTab('binary')} style={{ padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, border: 'none', cursor: 'pointer', background: historyTab === 'binary' ? 'rgba(255,255,255,0.1)' : 'transparent', color: historyTab === 'binary' ? '#EAECEF' : '#848E9C' }}>Binarias</button>
+              <button onClick={() => setHistoryTab('margin')} style={{ padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, border: 'none', cursor: 'pointer', background: historyTab === 'margin' ? 'rgba(255,255,255,0.1)' : 'transparent', color: historyTab === 'margin' ? '#EAECEF' : '#848E9C' }}>Margen</button>
+            </div>
           </div>
 
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
-            {transactions.length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 20px', textAlign: 'center', color: '#848E9C' }}>
-                <WalletIcon size={40} style={{ margin: '0 auto 12px', opacity: 0.15 }} />
-                <p style={{ margin: 0, fontSize: '0.9rem' }}>No transactions yet</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.15)' }}>
-                      {['Date & Time', 'Type', 'Description', 'Amount', 'Status'].map(h => (
-                        <th key={h} style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: h === 'Amount' || h === 'Status' ? 'right' : 'left' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((tx, idx) => (
-                      <tr key={tx.id}
-                        style={{ borderBottom: idx < transactions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', transition: 'background 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        <td style={{ padding: '16px 20px', fontSize: '0.8rem', color: '#848E9C', fontFamily: 'monospace' }}>
-                          <span suppressHydrationWarning>{new Date(tx.date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        </td>
-                        <td style={{ padding: '16px 20px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: tx.type === 'deposit' ? '#0ECB81' : tx.type === 'withdrawal' ? '#F6465D' : tx.type === 'binary_win' ? '#9945FF' : '#848E9C', flexShrink: 0 }} />
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'capitalize', color: '#EAECEF' }}>
-                              {tx.type.replace(/_/g, ' ')}
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '16px 20px', fontSize: '0.8rem', color: '#848E9C', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {tx.description || '-'}
-                        </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, fontSize: '0.9rem' }}>
-                          <span style={{ color: tx.amount > 0 ? '#0ECB81' : tx.amount === 0 ? '#848E9C' : '#F6465D' }}>
-                            {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                          <StatusBadge status={tx.status ?? 'completed'} />
-                        </td>
+            
+            {historyTab === 'transactions' && (
+              transactions.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 20px', textAlign: 'center', color: '#848E9C' }}>
+                  <WalletIcon size={40} style={{ margin: '0 auto 12px', opacity: 0.15 }} />
+                  <p style={{ margin: 0, fontSize: '0.9rem' }}>No transactions yet</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.15)' }}>
+                        {['Date & Time', 'Type', 'Description', 'Amount', 'Status'].map(h => (
+                          <th key={h} style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: h === 'Amount' || h === 'Status' ? 'right' : 'left' }}>{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {transactions.map((tx, idx) => (
+                        <tr key={tx.id}
+                          style={{ borderBottom: idx < transactions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', transition: 'background 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <td style={{ padding: '16px 20px', fontSize: '0.8rem', color: '#848E9C', fontFamily: 'monospace' }}>
+                            <span suppressHydrationWarning>{new Date(tx.date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                          </td>
+                          <td style={{ padding: '16px 20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: tx.type === 'deposit' ? '#0ECB81' : tx.type === 'withdrawal' ? '#F6465D' : tx.type === 'binary_win' ? '#9945FF' : '#848E9C', flexShrink: 0 }} />
+                              <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'capitalize', color: '#EAECEF' }}>
+                                {tx.type.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '16px 20px', fontSize: '0.8rem', color: '#848E9C', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {tx.description || '-'}
+                          </td>
+                          <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, fontSize: '0.9rem' }}>
+                            <span style={{ color: tx.amount > 0 ? '#0ECB81' : tx.amount === 0 ? '#848E9C' : '#F6465D' }}>
+                              {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
+                            </span>
+                          </td>
+                          <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                            <StatusBadge status={tx.status ?? 'completed'} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+
+            {historyTab === 'binary' && (
+              binaryOptions.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 20px', textAlign: 'center', color: '#848E9C' }}>
+                  <History size={40} style={{ margin: '0 auto 12px', opacity: 0.15 }} />
+                  <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay historial de opciones binarias</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.15)' }}>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase' }}>Fecha</th>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase' }}>Activo</th>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase' }}>Inversión</th>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase' }}>PNL</th>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase', textAlign: 'right' }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {binaryOptions.map(opt => (
+                        <tr key={opt.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '16px 20px', fontSize: '0.8rem', color: '#848E9C', fontFamily: 'monospace' }}>{new Date(opt.openedAt).toLocaleString()}</td>
+                          <td style={{ padding: '16px 20px' }}>
+                            <span style={{ fontWeight: 800 }}>{opt.symbol}</span>
+                            <span style={{ marginLeft: 8, fontSize: '0.7rem', color: opt.direction === 'call' ? '#0ECB81' : '#F6465D', background: opt.direction === 'call' ? 'rgba(14,203,129,0.1)' : 'rgba(246,70,93,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                              {opt.direction.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ padding: '16px 20px', fontFamily: 'monospace' }}>{formatCurrency(opt.amount)}</td>
+                          <td style={{ padding: '16px 20px', fontFamily: 'monospace', fontWeight: 800, color: (opt.pnl || 0) > 0 ? '#0ECB81' : (opt.pnl || 0) < 0 ? '#F6465D' : '#EAECEF' }}>
+                            {(opt.pnl || 0) > 0 ? '+' : ''}{opt.pnl ? formatCurrency(opt.pnl) : '—'}
+                          </td>
+                          <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: opt.status === 'won' ? '#0ECB81' : opt.status === 'lost' ? '#F6465D' : '#F0B90B' }}>
+                              {opt.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+
+            {historyTab === 'margin' && (
+              positions.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 20px', textAlign: 'center', color: '#848E9C' }}>
+                  <History size={40} style={{ margin: '0 auto 12px', opacity: 0.15 }} />
+                  <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay historial de margen</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.15)' }}>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase' }}>Activo</th>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase' }}>Tamaño (Apal.)</th>
+                        <th style={{ padding: '14px 20px', fontSize: '0.7rem', fontWeight: 700, color: '#848E9C', textTransform: 'uppercase' }}>Entrada</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {positions.map(pos => (
+                        <tr key={pos.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '16px 20px' }}>
+                            <span style={{ fontWeight: 800 }}>{pos.symbol}</span>
+                            <span style={{ marginLeft: 8, fontSize: '0.7rem', color: pos.type === 'buy' ? '#0ECB81' : '#F6465D', background: pos.type === 'buy' ? 'rgba(14,203,129,0.1)' : 'rgba(246,70,93,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                              {pos.type.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ padding: '16px 20px', fontFamily: 'monospace' }}>
+                            {formatCurrency(pos.amount)} <span style={{ color: '#848E9C', fontSize: '0.75rem' }}>{pos.leverage}x</span>
+                          </td>
+                          <td style={{ padding: '16px 20px', fontFamily: 'monospace', color: '#848E9C' }}>
+                            {formatCurrency(pos.entryPrice, true)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         </div>

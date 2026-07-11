@@ -122,9 +122,11 @@ export default function AdminDashboard() {
   const approveDeposit      = useTradingStore(s => s.approveDeposit);
   const rejectDeposit       = useTradingStore(s => s.rejectDeposit);
 
-  const [activeTab, setActiveTab]       = useState<AdminTab>('users');
+  const [activeTab, setActiveTab]       = useState<'users'|'transactions'|'trading'|'config'>('users');
   const [users, setUsers]               = useState<Profile[]>([]);
   const [adminTransactions, setAdminTransactions] = useState<Transaction[]>([]);
+  const [adminBinaryOptions, setAdminBinaryOptions] = useState<any[]>([]);
+  const [adminPositions, setAdminPositions] = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
   const [search, setSearch]             = useState('');
@@ -138,9 +140,19 @@ export default function AdminDashboard() {
   const [userDrawer, setUserDrawer]         = useState<UserDetailDrawer | null>(null);
   const [saving, setSaving]                 = useState(false);
 
-  // Config state
-  const [cfgFee, setCfgFee]             = useState('0.10');
-  const [cfgMaxLev, setCfgMaxLev]       = useState('100');
+  // Config tab state
+  const platformConfig = useTradingStore(s => s.platformConfig);
+  const updatePlatformConfig = useTradingStore(s => s.updatePlatformConfig);
+  const [cfgFee, setCfgFee]       = useState(platformConfig?.fee?.toString() || '0.1');
+  const [cfgMaxLev, setCfgMaxLev] = useState(platformConfig?.maxLeverage?.toString() || '100');
+  const [isSavingCfg, setIsSavingCfg] = useState(false);
+
+  useEffect(() => {
+    if (platformConfig) {
+      setCfgFee(platformConfig.fee.toString());
+      setCfgMaxLev(platformConfig.maxLeverage.toString());
+    }
+  }, [platformConfig]);
   const [cfgMaintenance, setCfgMaintenance] = useState(false);
   const [cfgPayoutMin, setCfgPayoutMin] = useState('75');
   const [cfgPayoutMax, setCfgPayoutMax] = useState('92');
@@ -156,9 +168,11 @@ export default function AdminDashboard() {
     const supabase = createClient();
     
     try {
-      const [usersRes, txRes] = await Promise.all([
+      const [usersRes, txRes, binRes, posRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        (supabase as any).from('transactions').select('*').order('created_at', { ascending: false })
+        (supabase as any).from('transactions').select('*').order('created_at', { ascending: false }),
+        (supabase as any).from('binary_options').select('*').order('created_at', { ascending: false }).limit(200),
+        (supabase as any).from('positions').select('*').order('created_at', { ascending: false }).limit(200)
       ]);
       
       if (usersRes.error) throw usersRes.error;
@@ -177,6 +191,8 @@ export default function AdminDashboard() {
         }));
         setAdminTransactions(txs);
       }
+      if (binRes?.data) setAdminBinaryOptions(binRes.data);
+      if (posRes?.data) setAdminPositions(posRes.data);
     } catch (err: any) {
       setError(err.message);
     }
@@ -388,6 +404,14 @@ export default function AdminDashboard() {
     } else toast.error(err.message);
   };
 
+  const handleSaveConfig = async () => {
+    setIsSavingCfg(true);
+    const success = await updatePlatformConfig(parseFloat(cfgFee), parseInt(cfgMaxLev, 10));
+    setIsSavingCfg(false);
+    if (success) toast.success('Configuración global guardada.');
+    else toast.error('Error al guardar la configuración.');
+  };
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const filteredUsers = users.filter(u => {
     const q = search.toLowerCase();
@@ -565,7 +589,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ══ Add Transaction Modal ══════════════════════════════════════════ */}
+      {/* ══ Add Transaction Modal ════════════════════════════════════════ */}
       {addTxModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setAddTxModal(null)}>
           <div style={{ background: '#1A1D21', border: '1px solid rgba(14,203,129,0.3)', borderRadius: 20, padding: 32, width: '100%', maxWidth: 460, boxShadow: '0 32px 80px rgba(0,0,0,0.7)' }} onClick={e => e.stopPropagation()}>
@@ -941,6 +965,109 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {/* ════ TAB: TRADING HISTORY ════ */}
+          {activeTab === 'trading' && (
+            <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 32 }}>
+              
+              <div>
+                <h3 style={{ fontWeight: 800, marginBottom: 16 }}>Opciones Binarias</h3>
+                <div style={{ background: '#13161A', border: '1px solid rgba(43,49,57,0.7)', borderRadius: 14, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(43,49,57,0.4)', fontSize: '0.75rem', color: '#848E9C', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '12px 16px' }}>Fecha</th>
+                        <th style={{ padding: '12px 16px' }}>Usuario</th>
+                        <th style={{ padding: '12px 16px' }}>Activo</th>
+                        <th style={{ padding: '12px 16px' }}>Monto</th>
+                        <th style={{ padding: '12px 16px' }}>PNL</th>
+                        <th style={{ padding: '12px 16px' }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminBinaryOptions.map(opt => {
+                        const optUser = users.find(u => u.id === opt.user_id);
+                        const isWin = opt.status === 'won';
+                        return (
+                          <tr key={opt.id} style={{ borderTop: '1px solid rgba(43,49,57,0.4)' }}>
+                            <td style={{ padding: '12px 16px', fontSize: '0.8rem' }}>{new Date(opt.created_at).toLocaleString()}</td>
+                            <td style={{ padding: '12px 16px', fontSize: '0.85rem', fontWeight: 600 }}>{optUser?.email || opt.user_id?.slice(0, 8)}</td>
+                            <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>
+                              <span style={{ fontWeight: 800 }}>{opt.symbol}</span>
+                              <span style={{ marginLeft: 6, fontSize: '0.7rem', color: opt.direction === 'call' ? '#0ECB81' : '#F6465D', background: opt.direction === 'call' ? 'rgba(14,203,129,0.1)' : 'rgba(246,70,93,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                                {opt.direction.toUpperCase()}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{formatCurrency(opt.amount)}</td>
+                            <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 800, color: opt.pnl > 0 ? '#0ECB81' : opt.pnl < 0 ? '#F6465D' : '#EAECEF' }}>
+                              {opt.pnl > 0 ? '+' : ''}{opt.pnl ? formatCurrency(opt.pnl) : '—'}
+                            </td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: isWin ? '#0ECB81' : opt.status === 'lost' ? '#F6465D' : '#F0B90B' }}>
+                                {opt.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {adminBinaryOptions.length === 0 && (
+                        <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#848E9C' }}>No hay historial binario</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ fontWeight: 800, marginBottom: 16 }}>Operaciones de Margen</h3>
+                <div style={{ background: '#13161A', border: '1px solid rgba(43,49,57,0.7)', borderRadius: 14, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(43,49,57,0.4)', fontSize: '0.75rem', color: '#848E9C', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '12px 16px' }}>Fecha</th>
+                        <th style={{ padding: '12px 16px' }}>Usuario</th>
+                        <th style={{ padding: '12px 16px' }}>Activo</th>
+                        <th style={{ padding: '12px 16px' }}>Margen (Apal.)</th>
+                        <th style={{ padding: '12px 16px' }}>PNL</th>
+                        <th style={{ padding: '12px 16px' }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminPositions.map(pos => {
+                        const posUser = users.find(u => u.id === pos.user_id);
+                        return (
+                          <tr key={pos.id} style={{ borderTop: '1px solid rgba(43,49,57,0.4)' }}>
+                            <td style={{ padding: '12px 16px', fontSize: '0.8rem' }}>{new Date(pos.created_at).toLocaleString()}</td>
+                            <td style={{ padding: '12px 16px', fontSize: '0.85rem', fontWeight: 600 }}>{posUser?.email || pos.user_id?.slice(0, 8)}</td>
+                            <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>
+                              <span style={{ fontWeight: 800 }}>{pos.symbol}</span>
+                              <span style={{ marginLeft: 6, fontSize: '0.7rem', color: pos.type === 'buy' ? '#0ECB81' : '#F6465D', background: pos.type === 'buy' ? 'rgba(14,203,129,0.1)' : 'rgba(246,70,93,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                                {pos.type.toUpperCase()}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{formatCurrency(pos.margin)} <span style={{ color: '#848E9C', fontSize: '0.75rem' }}>{pos.leverage}x</span></td>
+                            <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 800, color: pos.pnl > 0 ? '#0ECB81' : pos.pnl < 0 ? '#F6465D' : '#EAECEF' }}>
+                              {pos.pnl > 0 ? '+' : ''}{pos.pnl ? formatCurrency(pos.pnl) : '—'}
+                            </td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: pos.status === 'closed' ? '#848E9C' : '#0ECB81' }}>
+                                {pos.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {adminPositions.length === 0 && (
+                        <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#848E9C' }}>No hay historial de margen</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
           {/* ════ TAB: CONFIG ════ */}
           {activeTab === 'config' && (
             <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 700 }}>
@@ -1010,9 +1137,10 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <button onClick={() => toast.success('Configuración guardada correctamente')}
+              <button onClick={handleSaveConfig} disabled={isSavingCfg}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 32px', borderRadius: 12, border: 'none', background: '#F0B90B', color: '#000', cursor: 'pointer', fontWeight: 800, fontSize: '0.95rem', alignSelf: 'flex-start' }}>
-                <CheckCircle2 size={16} /> Guardar Configuración
+                {isSavingCfg ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                {isSavingCfg ? 'Guardando...' : 'Guardar Configuración'}
               </button>
             </div>
           )}

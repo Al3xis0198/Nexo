@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   ChevronRight,
   HelpCircle,
+  Zap,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLang } from '@/contexts/LangContext'
@@ -26,11 +27,13 @@ export default function Sidebar() {
 
   const NAV_ITEMS = [
     { name: t('side.dashboard'), href: '/dashboard',    icon: LayoutDashboard, match: '/dashboard' },
-    { name: t('side.markets'),   href: '/markets',       icon: BarChart2,       match: '/markets' },
-    { name: t('side.trade'),     href: '/trade/BTC-USD', icon: TrendingUp,      match: '/trade' },
+    { name: t('side.markets'),   href: '/markets',       icon: BarChart2,       match: '/markets'   },
+    { name: t('side.trade'),     href: '/trade/BTC-USD', icon: TrendingUp,      match: '/trade'     },
+    { name: 'Trading Binario',   href: '/binary',        icon: Zap,             match: '/binary', badge: 'NUEVO' },
     { name: t('side.portfolio'), href: '/portfolio',     icon: PieChart,        match: '/portfolio' },
-    { name: t('side.wallet'),    href: '/wallet',        icon: Wallet,          match: '/wallet' },
+    { name: t('side.wallet'),    href: '/wallet',        icon: Wallet,          match: '/wallet'    },
   ]
+
 
   return (
     <aside
@@ -64,8 +67,9 @@ export default function Sidebar() {
           {t('side.main')}
         </div>
 
-        {NAV_ITEMS.map(({ name, href, icon: Icon, match }) => {
+        {NAV_ITEMS.map(({ name, href, icon: Icon, match, badge }: any) => {
           const isActive = pathname === href || pathname.startsWith(match)
+          const isBinary = match === '/binary'
           return (
             <Link
               key={href}
@@ -75,20 +79,26 @@ export default function Sidebar() {
               <div
                 className="flex-center w-7 h-7 rounded-lg shrink-0"
                 style={{
-                  background: isActive ? 'rgba(240,185,11,0.15)' : 'var(--bg-tertiary)',
-                  color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                  background: isActive ? (isBinary ? 'rgba(153,69,255,0.15)' : 'rgba(240,185,11,0.15)') : isBinary ? 'rgba(153,69,255,0.1)' : 'var(--bg-tertiary)',
+                  color: isActive ? (isBinary ? '#9945FF' : 'var(--accent)') : isBinary ? '#9945FF' : 'var(--text-muted)',
                   transition: 'all 200ms',
                 }}
               >
                 <Icon size={15} />
               </div>
               <span className="flex-1 font-medium">{name}</span>
+              {badge && !isActive && (
+                <span style={{ fontSize: '0.58rem', fontWeight: 800, background: 'rgba(153,69,255,0.2)', color: '#9945FF', borderRadius: 20, padding: '1px 6px', letterSpacing: '0.05em' }}>
+                  {badge}
+                </span>
+              )}
               {isActive && (
-                <ChevronRight size={14} style={{ color: 'var(--accent)', opacity: 0.7 }} />
+                <ChevronRight size={14} style={{ color: isBinary ? '#9945FF' : 'var(--accent)', opacity: 0.7 }} />
               )}
             </Link>
           )
         })}
+
 
         {/* Admin section */}
         {isAdmin && (

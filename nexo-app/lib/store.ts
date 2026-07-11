@@ -408,6 +408,11 @@ export const useTradingStore = create<TradingState>()(
         status: 'completed',
       };
 
+      // Optimistic lock: update local state immediately to prevent duplicate settlements
+      set({
+        binaryOptions: state.binaryOptions.map(o => o.id === id ? { ...o, status, closePrice, pnl } : o)
+      });
+
       try {
         await Promise.all([
           (supabase as any).from('binary_options').update({ status, close_price: closePrice, pnl }).eq('id', id),
@@ -415,10 +420,7 @@ export const useTradingStore = create<TradingState>()(
           syncBalanceToSupabase(nextBalance)
         ]);
 
-        set({
-          balance: nextBalance,
-          binaryOptions: state.binaryOptions.map(o => o.id === id ? { ...o, status, closePrice, pnl } : o)
-        });
+        set({ balance: nextBalance });
         
         const optimisticTx: Transaction = { id: Math.random().toString(36).substring(7), type: txInsert.type as any, amount: txInsert.amount, date: new Date().toISOString(), description: txInsert.description, status: 'completed' };
         set({ transactions: [optimisticTx, ...state.transactions] });

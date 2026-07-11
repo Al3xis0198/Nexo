@@ -38,9 +38,6 @@ export default function TradingChart({
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const handleResize = () => {
-      chartRef.current?.applyOptions({ width: chartContainerRef.current?.clientWidth });
-    };
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -53,7 +50,7 @@ export default function TradingChart({
         horzLines: { color: 'rgba(43,49,57,0.4)' },
       },
       width:  chartContainerRef.current.clientWidth,
-      height: height - 48, // leave room for timeframe bar
+      height: chartContainerRef.current.clientHeight || (height - 48), // Use clientHeight directly if available
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -116,10 +113,19 @@ export default function TradingChart({
       chart.timeScale().fitContent();
     }
 
-    window.addEventListener('resize', handleResize);
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (entries.length === 0 || !chartRef.current) return;
+      const newRect = entries[0].contentRect;
+      chartRef.current.applyOptions({ 
+        width: newRect.width,
+        height: newRect.height
+      });
+    });
+
+    resizeObserver.observe(chartContainerRef.current);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       chart.remove();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

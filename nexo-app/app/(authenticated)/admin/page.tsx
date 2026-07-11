@@ -7,7 +7,7 @@ import {
   TrendingUp, DollarSign, Activity, Edit2, X, CheckCircle2,
   AlertTriangle, BarChart2, Clock, Filter, Plus, Minus,
   Trash2, Eye, ChevronRight, ArrowUpRight, ArrowDownLeft,
-  UserCog, FileText, Ban, Shield, Zap
+  UserCog, FileText, Ban, Shield, Zap, Hourglass
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import type { Profile } from '@/lib/supabase/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type AdminTab = 'users' | 'withdrawals' | 'transactions' | 'config';
+type AdminTab = 'users' | 'withdrawals' | 'deposits' | 'transactions' | 'config';
 
 interface EditBalanceModal {
   user: Profile;
@@ -119,6 +119,8 @@ export default function AdminDashboard() {
   const adminDeleteTx       = useTradingStore(s => s.adminDeleteTransaction);
   const approveWithdrawal   = useTradingStore(s => s.approveWithdrawal);
   const rejectWithdrawal    = useTradingStore(s => s.rejectWithdrawal);
+  const approveDeposit      = useTradingStore(s => s.approveDeposit);
+  const rejectDeposit       = useTradingStore(s => s.rejectDeposit);
 
   const [activeTab, setActiveTab]       = useState<AdminTab>('users');
   const [users, setUsers]               = useState<Profile[]>([]);
@@ -282,6 +284,16 @@ export default function AdminDashboard() {
     toast.success('Retiro rechazado y fondos devueltos');
   };
 
+  const handleApproveDeposit = (txId: string) => {
+    approveDeposit(txId);
+    toast.success('Depósito aprobado y fondos acreditados');
+  };
+
+  const handleRejectDeposit = (txId: string) => {
+    rejectDeposit(txId);
+    toast.success('Depósito rechazado');
+  };
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const filteredUsers = users.filter(u => {
     const q = search.toLowerCase();
@@ -294,6 +306,7 @@ export default function AdminDashboard() {
   const activeUsers   = users.filter(u => u.status === 'active').length;
   const verifiedUsers = users.filter(u => u.kyc_status === 'verified').length;
   const pendingWithdrawals = storeTransactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
+  const pendingDeposits = storeTransactions.filter(t => t.type === 'deposit' && t.status === 'pending');
 
   if (authLoading) return <div className="flex-center h-full"><Loader2 size={32} className="animate-spin text-accent" /></div>;
   if (!isAdmin)    return null;
@@ -548,10 +561,11 @@ export default function AdminDashboard() {
             {([
               { id: 'users',       label: '👥 Usuarios',              count: filteredUsers.length },
               { id: 'withdrawals', label: '💸 Retiros Pendientes',    count: pendingWithdrawals.length },
+              { id: 'deposits',    label: '📥 Depósitos Pendientes',  count: pendingDeposits.length },
               { id: 'transactions',label: '💰 Transacciones',         count: storeTransactions.length },
               { id: 'config',      label: '⚙️ Configuración',         count: null },
             ] as const).map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)}
                 style={{ padding: '14px 20px', border: 'none', borderBottom: `2px solid ${activeTab === tab.id ? '#F0B90B' : 'transparent'}`, background: 'transparent', color: activeTab === tab.id ? '#F0B90B' : '#848E9C', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem', whiteSpace: 'nowrap', transition: 'color 0.2s', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {tab.label}
                 {tab.count !== null && (
@@ -559,7 +573,7 @@ export default function AdminDashboard() {
                     {tab.count}
                   </span>
                 )}
-                {tab.id === 'withdrawals' && pendingWithdrawals.length > 0 && (
+                {((tab.id === 'withdrawals' && pendingWithdrawals.length > 0) || (tab.id === 'deposits' && pendingDeposits.length > 0)) && (
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F0B90B', flexShrink: 0 }} />
                 )}
               </button>
@@ -702,6 +716,58 @@ export default function AdminDashboard() {
                               <CheckCircle2 size={13} /> Aprobar
                             </button>
                             <button onClick={() => handleRejectWithdrawal(tx.id)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(246,70,93,0.3)', background: 'rgba(246,70,93,0.08)', color: '#F6465D', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                              <X size={13} /> Rechazar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ════ TAB: DEPOSITS ════ */}
+          {activeTab === 'deposits' && (
+            <div>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Hourglass size={16} style={{ color: '#1890FF' }} />
+                <span style={{ fontSize: '0.85rem', color: '#848E9C' }}>{pendingDeposits.length} depósito(s) pendientes de aprobación</span>
+              </div>
+              <div className="table-wrapper border-0 rounded-none" style={{ maxHeight: 520 }}>
+                <table className="table w-full">
+                  <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-secondary)' }}>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Descripción</th>
+                      <th className="text-right">Monto</th>
+                      <th className="text-right">Estado</th>
+                      <th className="text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingDeposits.length === 0 ? (
+                      <tr><td colSpan={5} className="text-center py-10 text-secondary">
+                        <CheckCircle2 size={24} className="mx-auto mb-2 text-bull" />
+                        No hay depósitos pendientes
+                      </td></tr>
+                    ) : pendingDeposits.map(tx => (
+                      <tr key={tx.id}>
+                        <td style={{ color: '#848E9C', fontSize: '0.78rem' }}><span suppressHydrationWarning>{new Date(tx.date).toLocaleString()}</span></td>
+                        <td style={{ fontSize: '0.83rem', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.description || '—'}</td>
+                        <td className="text-right font-mono font-semibold">
+                          <span style={{ color: '#1890FF' }}>{formatCurrency(tx.amount)}</span>
+                        </td>
+                        <td className="text-right"><StatusBadgeTx status={tx.status ?? 'pending'} /></td>
+                        <td className="text-right">
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <button onClick={() => handleApproveDeposit(tx.id)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(14,203,129,0.3)', background: 'rgba(14,203,129,0.08)', color: '#0ECB81', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                              <CheckCircle2 size={13} /> Aprobar
+                            </button>
+                            <button onClick={() => handleRejectDeposit(tx.id)}
                               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(246,70,93,0.3)', background: 'rgba(246,70,93,0.08)', color: '#F6465D', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
                               <X size={13} /> Rechazar
                             </button>

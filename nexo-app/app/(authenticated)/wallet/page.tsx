@@ -6,11 +6,133 @@ import { formatCurrency } from '@/lib/utils';
 import {
   Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine,
   History, Eye, EyeOff, ShieldCheck, Clock, CheckCircle2,
-  XCircle, AlertCircle, X
+  XCircle, AlertCircle, X, Hourglass, Bell
 } from 'lucide-react';
 import type { TransactionStatus } from '@/lib/store';
 
-// ── Withdrawal 24h Notice Modal ───────────────────────────────────────────────
+// ── Deposit Pending Modal ─────────────────────────────────────────────────────────────────────────
+function DepositPendingModal({
+  amount,
+  onClose,
+}: {
+  amount: number;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.85)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        backdropFilter: 'blur(6px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(145deg, #1A1D21, #13161A)',
+          border: '1px solid rgba(24,144,255,0.3)',
+          borderRadius: 24, padding: 36, width: '100%', maxWidth: 480,
+          boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 60px rgba(24,144,255,0.05)',
+          position: 'relative', animation: 'fadeInScale 0.25s ease',
+        }}
+      >
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#848E9C' }}>
+          <X size={20} />
+        </button>
+
+        {/* Icon */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+          <div style={{
+            width: 76, height: 76, borderRadius: '50%',
+            background: 'rgba(24,144,255,0.12)',
+            border: '2px solid rgba(24,144,255,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Hourglass size={34} color="#1890FF" />
+          </div>
+        </div>
+
+        {/* Title */}
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#EAECEF', margin: '0 0 6px 0' }}>
+            Depósito en Revisión
+          </h2>
+          <div style={{ fontSize: '2rem', fontWeight: 900, fontFamily: 'monospace', color: '#1890FF', marginBottom: 12 }}>
+            {formatCurrency(amount)}
+          </div>
+        </div>
+
+        {/* Info box */}
+        <div style={{
+          background: 'rgba(24,144,255,0.07)',
+          border: '1px solid rgba(24,144,255,0.22)',
+          borderRadius: 14, padding: '18px 20px', marginBottom: 20,
+        }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <Clock size={20} color="#1890FF" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div style={{ fontWeight: 800, color: '#1890FF', marginBottom: 6 }}>
+                Tu depósito está siendo verificado
+              </div>
+              <div style={{ fontSize: '0.84rem', color: '#848E9C', lineHeight: 1.65 }}>
+                Los fondos serán acreditados a tu cuenta una vez que nuestro equipo confirme la transacción.
+                Este proceso puede tomar entre <strong style={{ color: '#EAECEF' }}>5 minutos y 24 horas</strong>.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Steps */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+          {[
+            { icon: CheckCircle2, color: '#0ECB81', label: 'Solicitud de depósito recibida', done: true },
+            { icon: Clock,        color: '#1890FF', label: 'Verificación por el equipo de seguridad', done: false },
+            { icon: Hourglass,    color: '#848E9C', label: 'Fondos acreditados en tu cuenta', done: false },
+          ].map((step, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: step.done ? 'rgba(14,203,129,0.15)' : i === 1 ? 'rgba(24,144,255,0.12)' : 'rgba(43,49,57,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <step.icon size={14} color={step.color} />
+              </div>
+              <span style={{ fontSize: '0.84rem', color: step.done ? '#EAECEF' : i === 1 ? '#1890FF' : '#5E6673', fontWeight: step.done || i === 1 ? 600 : 400 }}>
+                {step.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Notification note */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(43,49,57,0.4)', borderRadius: 12, padding: '10px 14px', marginBottom: 20 }}>
+          <Bell size={15} color="#848E9C" />
+          <span style={{ fontSize: '0.78rem', color: '#848E9C' }}>
+            Podrás ver el estado en tu historial de transacciones.
+          </span>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
+            background: 'linear-gradient(135deg, #1890FF, #096DD9)',
+            color: '#fff', fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer',
+          }}
+        >
+          Entendido
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes fadeInScale {
+          from { opacity: 0; transform: scale(0.92); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Withdrawal 24h Notice Modal ───────────────────────────────────────────────────────────────────
 function WithdrawalNoticeModal({
   amount,
   onClose,
@@ -158,6 +280,7 @@ export default function WalletPage() {
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
   const [showBalance, setShowBalance] = useState(true);
   const [withdrawalModal, setWithdrawalModal] = useState<number | null>(null);
+  const [depositModal, setDepositModal]       = useState<number | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +300,7 @@ export default function WalletPage() {
 
     if (activeTab === 'deposit') {
       deposit(numAmount);
+      setDepositModal(numAmount);
       setAmount('');
     } else {
       withdraw(numAmount);
@@ -187,6 +311,14 @@ export default function WalletPage() {
 
   return (
     <>
+      {/* Deposit Pending Modal */}
+      {depositModal !== null && (
+        <DepositPendingModal
+          amount={depositModal}
+          onClose={() => setDepositModal(null)}
+        />
+      )}
+
       {/* 24h Withdrawal Notice Modal */}
       {withdrawalModal !== null && (
         <WithdrawalNoticeModal

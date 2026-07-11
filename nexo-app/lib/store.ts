@@ -77,6 +77,8 @@ interface TradingState {
   settleBinaryOption: (id: string, closePrice: number) => void;
   approveWithdrawal: (txId: string) => void;
   rejectWithdrawal: (txId: string) => void;
+  approveDeposit: (txId: string) => void;
+  rejectDeposit: (txId: string) => void;
   /** Llama esto al login para limpiar si cambió el usuario */
   initForUser: (userId: string, supabaseBalance: number) => void;
   /** Llama esto al logout */
@@ -178,21 +180,45 @@ export const useTradingStore = create<TradingState>()(
       }),
 
       deposit: (amount) => set((state) => {
+        // El depósito NO suma al balance inmediatamente — queda en 'pending'
+        // hasta que el admin lo apruebe
         const transaction: Transaction = {
           id: Math.random().toString(36).substring(7),
           type: 'deposit',
           amount: amount,
           date: new Date().toISOString(),
-          description: 'Deposit',
-          status: 'completed',
+          description: 'Depósito pendiente de confirmación — en revisión por el equipo',
+          status: 'pending',
         };
-        const nextBalance = state.balance + amount;
-        syncBalanceToSupabase(nextBalance);
+        // Balance NO se modifica hasta aprobación del admin
         return {
-          balance: nextBalance,
+          balance: state.balance,
           transactions: [transaction, ...state.transactions],
         };
       }),
+
+      approveDeposit: (txId) => set((state) => {
+        const tx = state.transactions.find(t => t.id === txId);
+        if (!tx || tx.type !== 'deposit' || tx.status !== 'pending') return state;
+        const nextBalance = state.balance + tx.amount;
+        syncBalanceToSupabase(nextBalance);
+        return {
+          balance: nextBalance,
+          transactions: state.transactions.map(t =>
+            t.id === txId
+              ? { ...t, status: 'completed', description: (t.description || 'Deposit') + ' — Aprobado por admin' }
+              : t
+          ),
+        };
+      }),
+
+      rejectDeposit: (txId) => set((state) => ({
+        transactions: state.transactions.map(t =>
+          t.id === txId && t.type === 'deposit'
+            ? { ...t, status: 'failed', description: (t.description || 'Deposit') + ' — Rechazado por admin' }
+            : t
+        ),
+      })),
 
       withdraw: (amount) => set((state) => {
         if (state.balance < amount) return state;

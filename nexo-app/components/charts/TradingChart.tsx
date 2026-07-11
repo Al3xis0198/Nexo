@@ -49,8 +49,8 @@ export default function TradingChart({
         vertLines: { color: 'rgba(43,49,57,0.4)' },
         horzLines: { color: 'rgba(43,49,57,0.4)' },
       },
-      width:  chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight || (height - 48), // Use clientHeight directly if available
+      width:  Math.max(chartContainerRef.current.clientWidth, 1),
+      height: Math.max(chartContainerRef.current.clientHeight || (height - 48), 1),
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -116,10 +116,12 @@ export default function TradingChart({
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries.length === 0 || !chartRef.current) return;
       const newRect = entries[0].contentRect;
-      chartRef.current.applyOptions({ 
-        width: newRect.width,
-        height: newRect.height
-      });
+      if (newRect.width > 0 && newRect.height > 0) {
+        chartRef.current.applyOptions({ 
+          width: newRect.width,
+          height: newRect.height
+        });
+      }
     });
 
     resizeObserver.observe(chartContainerRef.current);

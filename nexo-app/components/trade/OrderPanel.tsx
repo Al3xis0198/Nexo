@@ -75,8 +75,8 @@ export default function OrderPanel({ symbol, currentPrice }: OrderPanelProps) {
   };
 
   // ── Confirm: actually open position ─────────────────────────────────────
-  const handleConfirm = () => {
-    const success = openPosition({
+  const handleConfirm = async () => {
+    const success = await openPosition({
       symbol,
       type,
       amount: numAmount,
@@ -99,7 +99,7 @@ export default function OrderPanel({ symbol, currentPrice }: OrderPanelProps) {
       setSlPrice('');
       setTpPrice('');
     } else {
-      toast.error('Insufficient balance to open this position.');
+      toast.error('Error opening position or insufficient balance.');
     }
   };
 

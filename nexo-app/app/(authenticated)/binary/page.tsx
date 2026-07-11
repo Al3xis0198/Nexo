@@ -187,14 +187,14 @@ export default function BinaryPage() {
   }, [binaryOptions, settleBinaryOption]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (numAmount <= 0) { toast.error('Ingresa un monto válido'); return; }
     if (numAmount > balance) { toast.error('Saldo insuficiente'); return; }
 
     setSubmitting(true);
     const expiresAt = new Date(Date.now() + expiry.seconds * 1000).toISOString();
-    const success = openBinaryOption({
+    const success = await openBinaryOption({
       symbol:      selectedAsset.symbol,
       direction,
       amount:      numAmount,
@@ -203,13 +203,13 @@ export default function BinaryPage() {
       expiresAt,
     });
 
-    setTimeout(() => setSubmitting(false), 400);
+    setSubmitting(false);
 
     if (success) {
       toast.success(`✅ Opción ${direction.toUpperCase()} abierta — expira en ${expiry.label}`, { duration: 3000 });
       setAmount('');
     } else {
-      toast.error('Saldo insuficiente');
+      toast.error('Error al abrir operación o saldo insuficiente');
     }
   };
 
@@ -389,18 +389,12 @@ export default function BinaryPage() {
             {/* Payout preview */}
             {numAmount > 0 && (
               <div style={{ background: 'rgba(43,49,57,0.25)', borderRadius: 12, padding: '14px 16px', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#848E9C' }}>Inversión</span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatCurrency(numAmount)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#848E9C', fontWeight: 600 }}>Pago esperado (Ingreso)</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.2rem', color: '#0ECB81' }}>{formatCurrency(potential)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#848E9C' }}>Ganancia potencial</span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0ECB81' }}>+{formatCurrency(profit)}</span>
-                </div>
-                <div style={{ height: 1, background: 'rgba(43,49,57,0.6)' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#EAECEF', fontWeight: 700 }}>Retorno total si gana</span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 900, color: '#F0B90B' }}>{formatCurrency(potential)}</span>
+                <div style={{ fontSize: '0.75rem', color: '#5E6673', textAlign: 'right' }}>
+                  Beneficio neto de la operación: <span style={{ color: '#0ECB81', fontWeight: 700 }}>+{formatCurrency(profit)}</span>
                 </div>
               </div>
             )}

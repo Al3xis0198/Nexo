@@ -20,9 +20,11 @@ export default function SettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false)
 
   useEffect(() => {
-    if (profile) setFullName(profile.full_name || '')
+    if (profile) {
+      const t = setTimeout(() => setFullName(profile.full_name || ''), 0);
+      return () => clearTimeout(t);
+    }
   }, [profile])
-
   const handleUpdateProfile = async () => {
     if (!user) return
     setLoading(true)

@@ -282,7 +282,7 @@ export default function WalletPage() {
   const [withdrawalModal, setWithdrawalModal] = useState<number | null>(null);
   const [depositModal, setDepositModal]       = useState<number | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
 
@@ -299,11 +299,11 @@ export default function WalletPage() {
     }
 
     if (activeTab === 'deposit') {
-      deposit(numAmount);
+      await deposit(numAmount);
       setDepositModal(numAmount);
       setAmount('');
     } else {
-      withdraw(numAmount);
+      await withdraw(numAmount);
       setWithdrawalModal(numAmount);
       setAmount('');
     }

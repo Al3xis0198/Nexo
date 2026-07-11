@@ -76,7 +76,7 @@ export function useBinanceMarket(symbol: string, timeframe: Timeframe) {
 
   // 2. Conectar WebSocket para actualizaciones en tiempo real
   useEffect(() => {
-    fetchHistory();
+    const t = setTimeout(() => fetchHistory(), 0);
 
     const wsUrl = `wss://stream.binance.com:9443/ws/${binanceSymbol.toLowerCase()}@kline_${interval}`;
     const ws = new WebSocket(wsUrl);
@@ -114,8 +114,8 @@ export function useBinanceMarket(symbol: string, timeframe: Timeframe) {
     };
 
     return () => {
-      ws.close();
-      wsRef.current = null;
+      clearTimeout(t);
+      if (wsRef.current) wsRef.current.close();
     };
   }, [fetchHistory, binanceSymbol, interval]);
 

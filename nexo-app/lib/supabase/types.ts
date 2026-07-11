@@ -12,7 +12,11 @@ export type TransactionType =
   | 'trade_open'
   | 'trade_close'
   | 'admin_adjustment'
+  | 'binary_win'
+  | 'binary_loss'
+export type TransactionStatus = 'pending' | 'completed' | 'failed'
 export type UserRole = 'user' | 'admin'
+export type BinaryOptionStatus = 'open' | 'won' | 'lost' | 'expired'
 
 export interface Profile {
   id: string
@@ -57,7 +61,23 @@ export interface Transaction {
   amount: number
   description: string | null
   admin_note: string | null
+  status: TransactionStatus
   created_at: string
+}
+
+export interface BinaryOptionRecord {
+  id: string
+  user_id: string
+  symbol: string
+  direction: 'call' | 'put'
+  amount: number
+  payout_rate: number
+  entry_price: number
+  close_price: number | null
+  pnl: number | null
+  status: BinaryOptionStatus
+  expires_at: string
+  opened_at: string
 }
 
 // Tipo de base de datos completo para createClient<Database>
@@ -83,6 +103,11 @@ export interface Database {
         Row: Transaction
         Insert: Omit<Transaction, 'id' | 'created_at'>
         Update: Partial<Omit<Transaction, 'id' | 'user_id'>>
+      }
+      binary_options: {
+        Row: BinaryOptionRecord
+        Insert: Omit<BinaryOptionRecord, 'id' | 'opened_at'>
+        Update: Partial<Omit<BinaryOptionRecord, 'id' | 'user_id'>>
       }
     }
     Functions: {

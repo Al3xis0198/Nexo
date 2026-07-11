@@ -52,7 +52,8 @@ export default function TradePage() {
   const [prevPrice, setPrevPrice] = useState(0)
   useEffect(() => {
     if (price !== prevPrice && price > 0) {
-      setPrevPrice(price)
+      const t = setTimeout(() => setPrevPrice(price), 0);
+      return () => clearTimeout(t);
     }
   }, [price, prevPrice])
 

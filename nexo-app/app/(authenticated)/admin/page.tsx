@@ -124,6 +124,7 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab]       = useState<AdminTab>('users');
   const [users, setUsers]               = useState<Profile[]>([]);
+  const [adminTransactions, setAdminTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
   const [search, setSearch]             = useState('');
@@ -148,24 +149,44 @@ export default function AdminDashboard() {
     if (!authLoading && !isAdmin) router.replace('/dashboard');
   }, [isAdmin, authLoading, router]);
 
-  const fetchUsers = useCallback(async () => {
+  const fetchAdminData = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true);
     setError('');
     const supabase = createClient();
-    const { data, error: err } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (err) setError(err.message);
-    else if (data) setUsers(data as Profile[]);
+    
+    try {
+      const [usersRes, txRes] = await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        (supabase as any).from('transactions').select('*').order('created_at', { ascending: false })
+      ]);
+      
+      if (usersRes.error) throw usersRes.error;
+      if (txRes.error) throw txRes.error;
+      
+      if (usersRes.data) setUsers(usersRes.data as Profile[]);
+      if (txRes.data) {
+        const txs: Transaction[] = (txRes.data || []).map((t: any) => ({
+          id: t.id,
+          type: t.type,
+          amount: Number(t.amount),
+          date: t.created_at,
+          description: t.description || undefined,
+          status: t.status as TransactionStatus,
+          userId: t.user_id,
+        }));
+        setAdminTransactions(txs);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
     setLoading(false);
   }, [isAdmin]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetchUsers(), 0);
+    const t = setTimeout(() => fetchAdminData(), 0);
     return () => clearTimeout(t);
-  }, [fetchUsers]);
+  }, [fetchAdminData]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleUpdateStatus = async (userId: string, newStatus: string) => {
@@ -238,60 +259,133 @@ export default function AdminDashboard() {
     setSaving(false);
   };
 
-  const handleSaveEditTx = () => {
+  const handleSaveEditTx = async () => {
     if (!editTxModal) return;
     const num = parseFloat(editTxModal.amount);
     if (isNaN(num)) { toast.error('Monto inválido'); return; }
-    adminEditTx(editTxModal.tx.id, {
-      amount: num,
-      description: editTxModal.description,
-      status: editTxModal.status,
-      type: editTxModal.type,
-    });
-    toast.success('Transacción actualizada');
-    setEditTxModal(null);
+    
+    const supabase = createClient();
+    const { error: err } = await (supabase as any).from('transactions')
+      .update({ amount: num, description: editTxModal.description, status: editTxModal.status, type: editTxModal.type })
+      .eq('id', editTxModal.tx.id);
+      
+    if (!err) {
+      setAdminTransactions(txs => txs.map(t => t.id === editTxModal.tx.id ? { ...t, amount: num, description: editTxModal.description, status: editTxModal.status, type: editTxModal.type } : t));
+      toast.success('Transacción actualizada');
+      setEditTxModal(null);
+    } else {
+      toast.error(err.message);
+    }
   };
 
-  const handleAddTx = () => {
+  const handleAddTx = async () => {
     if (!addTxModal) return;
     const num = parseFloat(addTxModal.amount);
     if (isNaN(num)) { toast.error('Monto inválido'); return; }
-    adminAddTx({
+    
+    const supabase = createClient();
+    const txInsert = {
+      user_id: addTxModal.userId,
       type: addTxModal.type,
       amount: num,
-      date: new Date().toISOString(),
       description: addTxModal.description || `Admin: ${addTxModal.type}`,
       status: addTxModal.status,
-      userId: addTxModal.userId,
-    });
-    toast.success('Transacción añadida');
-    setAddTxModal(null);
+    };
+    
+    const { data, error: err }: any = await supabase.from('transactions').insert(txInsert as any).select().single();
+    if (!err && data) {
+      const newTx: Transaction = { id: data.id, type: data.type, amount: Number(data.amount), date: data.created_at, description: data.description, status: data.status, userId: data.user_id };
+      setAdminTransactions(txs => [newTx, ...txs]);
+      toast.success('Transacción añadida');
+      setAddTxModal(null);
+    } else {
+      toast.error(err?.message || 'Error al añadir');
+    }
   };
 
-  const handleDeleteTx = (txId: string) => {
+  const handleDeleteTx = async (txId: string) => {
     if (!window.confirm('¿Eliminar esta transacción?')) return;
-    adminDeleteTx(txId);
-    toast.success('Transacción eliminada');
+    const supabase = createClient();
+    const { error: err } = await (supabase as any).from('transactions').delete().eq('id', txId);
+    if (!err) {
+      setAdminTransactions(txs => txs.filter(t => t.id !== txId));
+      toast.success('Transacción eliminada');
+    } else {
+      toast.error(err.message);
+    }
   };
 
-  const handleApproveWithdrawal = (txId: string) => {
-    approveWithdrawal(txId);
-    toast.success('Retiro aprobado');
+  const handleApproveWithdrawal = async (txId: string) => {
+    const tx = adminTransactions.find(t => t.id === txId);
+    if (!tx || tx.type !== 'withdrawal') return;
+    
+    const supabase = createClient();
+    const desc = (tx.description || 'Withdrawal') + ' — Approved';
+    
+    const { error: err } = await (supabase as any).from('transactions').update({ status: 'completed', description: desc }).eq('id', txId);
+    if (!err) {
+      setAdminTransactions(txs => txs.map(t => t.id === txId ? { ...t, status: 'completed', description: desc } : t));
+      toast.success('Retiro aprobado');
+    } else toast.error(err.message);
   };
 
-  const handleRejectWithdrawal = (txId: string) => {
-    rejectWithdrawal(txId);
-    toast.success('Retiro rechazado y fondos devueltos');
+  const handleRejectWithdrawal = async (txId: string) => {
+    const tx = adminTransactions.find(t => t.id === txId);
+    const user = users.find(u => u.id === tx?.userId);
+    if (!tx || tx.type !== 'withdrawal' || !user) return;
+    
+    const refundAmount = Math.abs(tx.amount);
+    const nextBalance = user.balance + refundAmount;
+    const supabase = createClient();
+    const desc = (tx.description || 'Withdrawal') + ' — Rejected & Refunded';
+    
+    try {
+      await Promise.all([
+        (supabase as any).from('transactions').update({ status: 'failed', description: desc }).eq('id', txId),
+        (supabase as any).from('profiles').update({ balance: nextBalance }).eq('id', user.id)
+      ]);
+      setAdminTransactions(txs => txs.map(t => t.id === txId ? { ...t, status: 'failed', description: desc } : t));
+      setUsers(us => us.map(u => u.id === user.id ? { ...u, balance: nextBalance } : u));
+      toast.success('Retiro rechazado y fondos devueltos al usuario');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
-  const handleApproveDeposit = (txId: string) => {
-    approveDeposit(txId);
-    toast.success('Depósito aprobado y fondos acreditados');
+  const handleApproveDeposit = async (txId: string) => {
+    const tx = adminTransactions.find(t => t.id === txId);
+    const user = users.find(u => u.id === tx?.userId);
+    if (!tx || tx.type !== 'deposit' || !user) return;
+    
+    const nextBalance = user.balance + tx.amount;
+    const supabase = createClient();
+    const desc = (tx.description || 'Deposit') + ' — Aprobado por admin';
+    
+    try {
+      await Promise.all([
+        (supabase as any).from('transactions').update({ status: 'completed', description: desc }).eq('id', txId),
+        (supabase as any).from('profiles').update({ balance: nextBalance }).eq('id', user.id)
+      ]);
+      setAdminTransactions(txs => txs.map(t => t.id === txId ? { ...t, status: 'completed', description: desc } : t));
+      setUsers(us => us.map(u => u.id === user.id ? { ...u, balance: nextBalance } : u));
+      toast.success('Depósito aprobado y fondos acreditados al usuario');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
-  const handleRejectDeposit = (txId: string) => {
-    rejectDeposit(txId);
-    toast.success('Depósito rechazado');
+  const handleRejectDeposit = async (txId: string) => {
+    const tx = adminTransactions.find(t => t.id === txId);
+    if (!tx || tx.type !== 'deposit') return;
+    
+    const supabase = createClient();
+    const desc = (tx.description || 'Deposit') + ' — Rechazado por admin';
+    
+    const { error: err } = await (supabase as any).from('transactions').update({ status: 'failed', description: desc }).eq('id', txId);
+    if (!err) {
+      setAdminTransactions(txs => txs.map(t => t.id === txId ? { ...t, status: 'failed', description: desc } : t));
+      toast.success('Depósito rechazado');
+    } else toast.error(err.message);
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -305,8 +399,8 @@ export default function AdminDashboard() {
   const totalBalance  = users.reduce((a, u) => a + u.balance, 0);
   const activeUsers   = users.filter(u => u.status === 'active').length;
   const verifiedUsers = users.filter(u => u.kyc_status === 'verified').length;
-  const pendingWithdrawals = storeTransactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
-  const pendingDeposits = storeTransactions.filter(t => t.type === 'deposit' && t.status === 'pending');
+  const pendingWithdrawals = adminTransactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
+  const pendingDeposits = adminTransactions.filter(t => t.type === 'deposit' && t.status === 'pending');
 
   if (authLoading) return <div className="flex-center h-full"><Loader2 size={32} className="animate-spin text-accent" /></div>;
   if (!isAdmin)    return null;
@@ -539,7 +633,7 @@ export default function AdminDashboard() {
                 <Clock size={14} /> {pendingWithdrawals.length} retiro(s) pendiente(s)
               </div>
             )}
-            <button onClick={fetchUsers} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10, border: '1px solid rgba(43,49,57,0.8)', background: 'transparent', color: '#848E9C', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+            <button onClick={fetchAdminData} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10, border: '1px solid rgba(43,49,57,0.8)', background: 'transparent', color: '#848E9C', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Actualizar
             </button>
           </div>
@@ -562,7 +656,7 @@ export default function AdminDashboard() {
               { id: 'users',       label: '👥 Usuarios',              count: filteredUsers.length },
               { id: 'withdrawals', label: '💸 Retiros Pendientes',    count: pendingWithdrawals.length },
               { id: 'deposits',    label: '📥 Depósitos Pendientes',  count: pendingDeposits.length },
-              { id: 'transactions',label: '💰 Transacciones',         count: storeTransactions.length },
+              { id: 'transactions',label: '💰 Transacciones',         count: adminTransactions.length },
               { id: 'config',      label: '⚙️ Configuración',         count: null },
             ] as const).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id as AdminTab)}
@@ -784,78 +878,69 @@ export default function AdminDashboard() {
           {/* ════ TAB: TRANSACTIONS ════ */}
           {activeTab === 'transactions' && (
             <div>
-              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Clock size={15} style={{ color: '#848E9C' }} />
-                  <span style={{ fontSize: '0.85rem', color: '#848E9C' }}>{storeTransactions.length} transacciones totales</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[
-                    { label: 'Depósitos',    count: storeTransactions.filter(t => t.type === 'deposit').length,               color: '#0ECB81' },
-                    { label: 'Retiros',      count: storeTransactions.filter(t => t.type === 'withdrawal').length,             color: '#F6465D' },
-                    { label: 'Trades',       count: storeTransactions.filter(t => t.type.startsWith('trade')).length,         color: '#F0B90B' },
-                    { label: 'Pendientes',   count: storeTransactions.filter(t => t.status === 'pending').length,             color: '#F0B90B' },
-                    { label: 'Admin',        count: storeTransactions.filter(t => t.type === 'admin_adjustment').length,      color: '#1890FF' },
-                  ].map(s => (
-                    <div key={s.label} style={{ fontSize: '0.72rem', color: s.color, background: s.color + '15', borderRadius: 8, padding: '3px 10px', fontWeight: 700 }}>
-                      {s.label}: {s.count}
-                    </div>
-                  ))}
-                </div>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }} />
               </div>
-
-              <div className="table-wrapper border-0 rounded-none" style={{ maxHeight: 520, overflowY: 'auto' }}>
+              <div className="table-wrapper border-0 rounded-none" style={{ maxHeight: 600 }}>
                 <table className="table w-full">
                   <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-secondary)' }}>
                     <tr>
-                      <th>Fecha y Hora</th>
+                      <th>ID / Fecha</th>
+                      <th>Usuario</th>
                       <th>Tipo</th>
+                      <th>Monto</th>
+                      <th>Estado</th>
                       <th>Descripción</th>
-                      <th className="text-right">Monto</th>
-                      <th className="text-right">Estado</th>
                       <th className="text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {storeTransactions.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-10 text-secondary">No hay transacciones.</td></tr>
-                    ) : storeTransactions.map(tx => (
-                      <tr key={tx.id}>
-                        <td style={{ color: '#848E9C', fontSize: '0.78rem' }}><span suppressHydrationWarning>{new Date(tx.date).toLocaleString()}</span></td>
-                        <td>
-                          <span className={`badge ${tx.type === 'deposit' ? 'badge-bull' : tx.type === 'withdrawal' ? 'badge-bear' : tx.type === 'admin_adjustment' ? 'badge-verified' : 'badge-neutral'}`}>
-                            {tx.type.replace(/_/g, ' ').toUpperCase()}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '0.83rem', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.description || '—'}</td>
-                        <td className="text-right font-mono font-semibold">
-                          <span style={{ color: tx.amount >= 0 ? '#0ECB81' : '#F6465D' }}>
-                            {tx.amount >= 0 ? '+' : ''}{formatCurrency(tx.amount)}
-                          </span>
-                        </td>
-                        <td className="text-right"><StatusBadgeTx status={tx.status ?? 'completed'} /></td>
-                        <td className="text-right">
-                          <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end' }}>
-                            <button onClick={() => setEditTxModal({ tx, amount: String(tx.amount), description: tx.description || '', status: tx.status ?? 'completed', type: tx.type })}
-                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(153,69,255,0.3)', background: 'rgba(153,69,255,0.08)', color: '#9945FF', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}
-                              title="Editar">
-                              <Edit2 size={11} />
-                            </button>
-                            <button onClick={() => handleDeleteTx(tx.id)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(246,70,93,0.3)', background: 'rgba(246,70,93,0.08)', color: '#F6465D', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}
-                              title="Eliminar">
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {adminTransactions.length === 0 ? (
+                      <tr><td colSpan={7} className="text-center py-10 text-secondary">No hay transacciones registradas.</td></tr>
+                    ) : adminTransactions.map(tx => {
+                      const txUser = users.find(u => u.id === tx.userId);
+                      return (
+                        <tr key={tx.id} className="group">
+                          <td>
+                            <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.82rem' }}>{tx.id.slice(0, 8)}…</div>
+                            <div style={{ fontSize: '0.75rem', color: '#848E9C' }}>{new Date(tx.date).toLocaleString()}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{txUser ? (txUser.full_name || txUser.email) : 'Usuario'}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#848E9C' }}>ID: {tx.userId?.slice(0, 8)}…</div>
+                          </td>
+                          <td>
+                            <span className="badge badge-neutral" style={{ fontSize: '0.72rem', textTransform: 'uppercase' }}>
+                              {tx.type.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                          <td style={{ fontFamily: 'monospace', fontWeight: 800, color: tx.amount > 0 ? '#0ECB81' : tx.amount < 0 ? '#F6465D' : '#EAECEF' }}>
+                            {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
+                          </td>
+                          <td><StatusBadgeTx status={tx.status} /></td>
+                          <td style={{ color: '#848E9C', fontSize: '0.8rem', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tx.description}>
+                            {tx.description || '—'}
+                          </td>
+                          <td className="text-right">
+                            <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', opacity: 0, transition: 'opacity 0.2s' }} className="group-hover:opacity-100">
+                              <button onClick={() => setEditTxModal({ tx, amount: tx.amount.toString(), description: tx.description || '', status: tx.status, type: tx.type })}
+                                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(153,69,255,0.3)', background: 'rgba(153,69,255,0.08)', color: '#9945FF', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>
+                                Editar
+                              </button>
+                              <button onClick={() => handleDeleteTx(tx.id)}
+                                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(246,70,93,0.3)', background: 'rgba(246,70,93,0.08)', color: '#F6465D', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>
+                                Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
-
           {/* ════ TAB: CONFIG ════ */}
           {activeTab === 'config' && (
             <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 700 }}>

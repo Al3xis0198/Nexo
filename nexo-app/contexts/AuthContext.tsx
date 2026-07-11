@@ -31,7 +31,7 @@ const AuthContext = createContext<AuthContextValue>({
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser]       = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -39,11 +39,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient()
 
+    const loadProfile = async (userId: string) => {
+      const supabase = createClient()
+      const [profileRes, roleRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase.from('user_roles').select('role').eq('user_id', userId),
+      ])
+
+      const pRes = profileRes as any
+      const rRes = roleRes as any
+
+      if (pRes.data) {
+        const profileData = pRes.data as Profile
+        setProfile(profileData)
+
+        // ── CLAVE: inicializar el store para ESTE usuario concreto ──────
+        // Si es un usuario diferente al anterior, limpia todo el estado local
+        // y carga el balance real desde Supabase
+        useTradingStore.getState().initForUser(userId, profileData.balance)
+      }
+      if (rRes.data) {
+        setIsAdmin(rRes.data.some((r: { role: string }) => r.role === 'admin'))
+      }
+    }
+
     const loadUser = async () => {
       try {
         const { data: { user: currentUser } } = await supabase.auth.getUser()
         setUser(currentUser)
-
         if (currentUser) {
           await loadProfile(currentUser.id)
         }
@@ -54,34 +77,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const loadProfile = async (userId: string) => {
-      const supabase = createClient()
-      const [profileRes, roleRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('user_roles').select('role').eq('user_id', userId),
-      ])
-
-      const pRes = profileRes as any;
-      const rRes = roleRes as any;
-      if (pRes.data) {
-        setProfile(pRes.data as Profile)
-        // Sync database balance to Zustand store
-        useTradingStore.setState({ balance: pRes.data.balance })
-      }
-      if (rRes.data) {
-        setIsAdmin(rRes.data.some((r: { role: string }) => r.role === 'admin'))
-      }
-    }
-
     loadUser()
 
-    // Escuchar cambios de sesión (login/logout/token refresh)
+    // Escuchar cambios de sesión (login / logout / token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null)
+
         if (session?.user) {
           await loadProfile(session.user.id)
         } else {
+          // ── LOGOUT: limpiar TODO el estado local del store ─────────────
+          useTradingStore.getState().resetStore()
           setProfile(null)
           setIsAdmin(false)
         }
@@ -97,14 +104,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient()
     const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
     if (data) {
-      const profile = data as Profile
-      setProfile(profile)
-      useTradingStore.setState({ balance: profile.balance })
+      const profileData = data as Profile
+      setProfile(profileData)
+      // Solo actualizar balance, sin tocar transacciones
+      useTradingStore.setState({ balance: profileData.balance })
     }
   }, [user])
 
   const signOut = useCallback(async () => {
     try {
+      // Limpiar store ANTES de hacer logout para evitar flash de datos
+      useTradingStore.getState().resetStore()
       await fetch('/auth/logout', { method: 'POST' })
     } catch (err) {
       console.error('[AuthContext] Sign out error:', err)

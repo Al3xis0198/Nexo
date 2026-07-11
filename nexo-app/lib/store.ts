@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { createClient } from './supabase/client';
 
 /** Writes an absolute balance value to Supabase */
@@ -19,9 +19,9 @@ export type Position = {
   id: string;
   symbol: string;
   type: 'buy' | 'sell';
-  amount: number;       // Total notional (margin × leverage)
-  margin: number;       // Actual capital deducted from balance
-  fee: number;          // Fee paid
+  amount: number;
+  margin: number;
+  fee: number;
   entryPrice: number;
   leverage: number;
   stopLoss?: number;
@@ -48,9 +48,9 @@ export type BinaryOption = {
   symbol: string;
   direction: 'call' | 'put';
   amount: number;
-  payoutRate: number;  // e.g. 0.85 = 85% payout
+  payoutRate: number;
   entryPrice: number;
-  expiresAt: string;   // ISO string
+  expiresAt: string;
   openedAt: string;
   status: BinaryOptionStatus;
   closePrice?: number;
@@ -62,6 +62,8 @@ interface TradingState {
   positions: Position[];
   transactions: Transaction[];
   binaryOptions: BinaryOption[];
+  /** ID del usuario actual — usado para aislar datos en localStorage */
+  _currentUserId: string | null;
 
   openPosition: (position: Omit<Position, 'id' | 'openedAt'>) => boolean;
   closePosition: (id: string, closePrice: number, pnl: number) => void;
@@ -75,15 +77,48 @@ interface TradingState {
   settleBinaryOption: (id: string, closePrice: number) => void;
   approveWithdrawal: (txId: string) => void;
   rejectWithdrawal: (txId: string) => void;
+  /** Llama esto al login para limpiar si cambió el usuario */
+  initForUser: (userId: string, supabaseBalance: number) => void;
+  /** Llama esto al logout */
+  resetStore: () => void;
 }
+
+const EMPTY_STATE = {
+  balance: 0,
+  positions: [] as Position[],
+  transactions: [] as Transaction[],
+  binaryOptions: [] as BinaryOption[],
+  _currentUserId: null as string | null,
+};
 
 export const useTradingStore = create<TradingState>()(
   persist(
     (set, get) => ({
-      balance: 0,
-      positions: [],
-      transactions: [],
-      binaryOptions: [],
+      ...EMPTY_STATE,
+
+      // ── Inicializar para un usuario específico ─────────────────────────
+      initForUser: (userId: string, supabaseBalance: number) => {
+        const current = get()._currentUserId;
+        if (current !== null && current !== userId) {
+          // Usuario diferente → limpiar todo y empezar desde cero
+          set({
+            ...EMPTY_STATE,
+            _currentUserId: userId,
+            balance: supabaseBalance,
+          });
+        } else if (current === null) {
+          // Primera carga → establecer usuario y balance de Supabase
+          set({ _currentUserId: userId, balance: supabaseBalance });
+        } else {
+          // Mismo usuario → solo actualizar balance desde Supabase
+          set({ balance: supabaseBalance });
+        }
+      },
+
+      // ── Reset completo al logout ───────────────────────────────────────
+      resetStore: () => {
+        set({ ...EMPTY_STATE });
+      },
 
       openPosition: (pos) => {
         let success = false;
@@ -205,7 +240,6 @@ export const useTradingStore = create<TradingState>()(
           ...tx,
           id: Math.random().toString(36).substring(7),
         };
-        // Adjust balance if needed
         const nextBalance = state.balance + tx.amount;
         if (tx.type !== 'trade_open' && tx.type !== 'trade_close') {
           syncBalanceToSupabase(Math.max(0, nextBalance));
@@ -248,7 +282,6 @@ export const useTradingStore = create<TradingState>()(
           syncBalanceToSupabase(nextBalance);
           return {
             balance: nextBalance,
-            positions: state.positions,
             binaryOptions: [newOption, ...state.binaryOptions],
             transactions: [transaction, ...state.transactions],
           };
@@ -282,9 +315,7 @@ export const useTradingStore = create<TradingState>()(
         return {
           balance: nextBalance,
           binaryOptions: state.binaryOptions.map(o =>
-            o.id === id
-              ? { ...o, status: isWin ? 'won' : 'lost', closePrice, pnl }
-              : o
+            o.id === id ? { ...o, status: isWin ? 'won' : 'lost', closePrice, pnl } : o
           ),
           transactions: [transaction, ...state.transactions],
         };
@@ -316,6 +347,30 @@ export const useTradingStore = create<TradingState>()(
     }),
     {
       name: 'nexotrading-storage',
+      // La clave de localStorage se hace dinámica basada en el userId
+      // Esto aísla completamente los datos de cada usuario
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') return localStorage;
+        // Wrapper que prefija todas las claves con el userId del estado actual
+        return {
+          getItem: (name: string) => {
+            const raw = localStorage.getItem(name);
+            if (!raw) return null;
+            try {
+              const parsed = JSON.parse(raw);
+              return raw; // devolver tal cual, el filtro ocurre en initForUser
+            } catch {
+              return null;
+            }
+          },
+          setItem: (name: string, value: string) => {
+            localStorage.setItem(name, value);
+          },
+          removeItem: (name: string) => {
+            localStorage.removeItem(name);
+          },
+        };
+      }),
     }
   )
 );

@@ -5,8 +5,9 @@ CREATE TYPE kyc_status AS ENUM ('pending', 'verified', 'rejected');
 CREATE TYPE position_type AS ENUM ('buy', 'sell');
 CREATE TYPE position_status AS ENUM ('open', 'closed');
 CREATE TYPE asset_type AS ENUM ('crypto', 'stock', 'forex', 'commodity');
-CREATE TYPE transaction_type AS ENUM ('deposit', 'withdrawal', 'trade_open', 'trade_close', 'admin_adjustment');
+CREATE TYPE transaction_type AS ENUM ('deposit', 'withdrawal', 'trade_open', 'trade_close', 'admin_adjustment', 'binary_win', 'binary_loss');
 CREATE TYPE user_role AS ENUM ('user', 'admin');
+CREATE TYPE binary_option_status AS ENUM ('open', 'won', 'lost', 'expired');
 
 -- 2. Tables
 
@@ -61,6 +62,34 @@ CREATE TABLE transactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+-- Binary Options Table (Options binary history)
+CREATE TABLE binary_options (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  symbol TEXT NOT NULL,
+  direction TEXT NOT NULL CHECK (direction IN ('call', 'put')),
+  amount NUMERIC NOT NULL,
+  payout_rate NUMERIC NOT NULL,
+  entry_price NUMERIC NOT NULL,
+  close_price NUMERIC,
+  pnl NUMERIC,
+  status binary_option_status DEFAULT 'open' NOT NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  opened_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Platform Settings Table (Global settings)
+CREATE TABLE platform_settings (
+  id INT PRIMARY KEY,
+  fee NUMERIC DEFAULT 0.1 NOT NULL,
+  max_leverage INT DEFAULT 100 NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+INSERT INTO platform_settings (id, fee, max_leverage)
+VALUES (1, 0.1, 100)
+ON CONFLICT (id) DO NOTHING;
+
 -- 3. Functions & Triggers
 
 -- Trigger to automatically create a profile when a new user signs up in Supabase Auth
@@ -109,6 +138,8 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE binary_options ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_settings ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
 CREATE POLICY "Users can view their own profile" ON profiles
@@ -161,3 +192,26 @@ CREATE POLICY "Users can insert their own transactions" ON transactions
 
 CREATE POLICY "Admins can insert any transaction" ON transactions
   FOR INSERT WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+-- Binary Options Policies
+CREATE POLICY "Users can view their own binary options" ON binary_options
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own binary options" ON binary_options
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all binary options" ON binary_options
+  FOR SELECT USING (public.has_role(auth.uid(), 'admin'));
+
+CREATE POLICY "Admins can insert binary options" ON binary_options
+  FOR INSERT WITH CHECK (public.has_role(auth.uid(), 'admin'));
+
+CREATE POLICY "Admins can update binary options" ON binary_options
+  FOR UPDATE USING (public.has_role(auth.uid(), 'admin'));
+
+-- Platform Settings Policies
+CREATE POLICY "Anyone can read platform settings" ON platform_settings
+  FOR SELECT USING (true);
+
+CREATE POLICY "Only admins can insert/update platform settings" ON platform_settings
+  FOR ALL USING (public.has_role(auth.uid(), 'admin'));

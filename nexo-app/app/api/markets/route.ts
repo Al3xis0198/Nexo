@@ -1,4 +1,5 @@
 // app/api/markets/route.ts
+export const dynamic = 'force-dynamic'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // Proxy server-side para CoinGecko — evita CORS y protege la API key

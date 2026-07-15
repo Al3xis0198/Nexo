@@ -1,6 +1,6 @@
-// middleware.ts — Next.js Route Protection
-// IMPORTANTE: Este archivo DEBE llamarse "middleware.ts" en la raíz del proyecto
-// para que Next.js lo reconozca automáticamente.
+// proxy.ts — Next.js Route Protection (Middleware)
+// IMPORTANTE: En este proyecto (Next.js 16), la convención "middleware.ts"
+// está obsoleta y se debe usar "proxy.ts" en la raíz para que sea detectado.
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'

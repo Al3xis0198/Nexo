@@ -26,7 +26,7 @@ export default function PortfolioPage() {
     const isLong = pos.type === 'buy';
     const priceDiff = isLong ? currentPrice - pos.entryPrice : pos.entryPrice - currentPrice;
     const percentage = priceDiff / pos.entryPrice;
-    return acc + (pos.amount * percentage * pos.leverage);
+    return acc + (pos.amount * percentage);
   }, 0);
 
   const estimatedTotal = balance + totalInvested + totalUnrealizedPnl;
@@ -132,7 +132,7 @@ export default function PortfolioPage() {
                   const isLong = pos.type === 'buy';
                   const priceDiff = isLong ? currentPrice - pos.entryPrice : pos.entryPrice - currentPrice;
                   const percentage = priceDiff / pos.entryPrice;
-                  const pnl = pos.amount * percentage * pos.leverage;
+                  const pnl = pos.amount * percentage;
                   const pnlPct = (pnl / (pos.amount / pos.leverage)) * 100;
                   const isPositive = pnl >= 0;
 

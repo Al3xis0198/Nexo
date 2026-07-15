@@ -1,4 +1,5 @@
 // app/api/prices/[symbol]/route.ts
+export const dynamic = 'force-dynamic'
 // Genera datos históricos de velas para el gráfico
 
 import { NextResponse } from 'next/server'

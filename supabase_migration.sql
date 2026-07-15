@@ -50,12 +50,40 @@ CREATE TABLE IF NOT EXISTS public.positions (
 CREATE TABLE IF NOT EXISTS public.transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('deposit','withdrawal','trade_open','trade_close','admin_adjustment')),
+  type TEXT NOT NULL CHECK (type IN ('deposit','withdrawal','trade_open','trade_close','admin_adjustment','binary_win','binary_loss')),
   amount DECIMAL(20,8) NOT NULL,
   description TEXT,
   admin_note TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ===== TABLA: binary_options =====
+CREATE TABLE IF NOT EXISTS public.binary_options (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  symbol TEXT NOT NULL,
+  direction TEXT NOT NULL CHECK (direction IN ('call', 'put')),
+  amount DECIMAL(20,8) NOT NULL,
+  payout_rate DECIMAL(5,2) NOT NULL,
+  entry_price DECIMAL(20,8) NOT NULL,
+  close_price DECIMAL(20,8),
+  pnl DECIMAL(20,8),
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'won', 'lost', 'expired')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  opened_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ===== TABLA: platform_settings =====
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+  id INT PRIMARY KEY,
+  fee DECIMAL(10,4) NOT NULL DEFAULT 0.1,
+  max_leverage INT NOT NULL DEFAULT 100,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO public.platform_settings (id, fee, max_leverage)
+VALUES (1, 0.1, 100)
+ON CONFLICT (id) DO NOTHING;
 
 -- ===== FUNCIÓN: has_role =====
 CREATE OR REPLACE FUNCTION public.has_role(p_user_id UUID, p_role TEXT)
@@ -126,6 +154,8 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.binary_options ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
 
 -- ===== POLÍTICAS: profiles =====
 CREATE POLICY "Users can view own profile"
@@ -175,6 +205,24 @@ CREATE POLICY "Admins can manage all transactions"
   ON public.transactions FOR ALL
   USING (public.has_role(auth.uid(), 'admin'));
 
+-- ===== POLÍTICAS: binary_options =====
+CREATE POLICY "Users can manage own binary options"
+  ON public.binary_options FOR ALL
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage all binary options"
+  ON public.binary_options FOR ALL
+  USING (public.has_role(auth.uid(), 'admin'));
+
+-- ===== POLÍTICAS: platform_settings =====
+CREATE POLICY "Anyone can read platform settings"
+  ON public.platform_settings FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admins can manage platform settings"
+  ON public.platform_settings FOR ALL
+  USING (public.has_role(auth.uid(), 'admin'));
+
 -- ============================================================
 -- GRANT permisos a anon y authenticated
 -- ============================================================
@@ -183,7 +231,10 @@ GRANT ALL ON public.profiles TO authenticated;
 GRANT ALL ON public.user_roles TO authenticated;
 GRANT ALL ON public.positions TO authenticated;
 GRANT ALL ON public.transactions TO authenticated;
+GRANT ALL ON public.binary_options TO authenticated;
+GRANT ALL ON public.platform_settings TO authenticated;
 GRANT SELECT ON public.profiles TO anon;
+GRANT SELECT ON public.platform_settings TO anon;
 
 -- ============================================================
 -- ÍNDICES para rendimiento
@@ -192,6 +243,7 @@ CREATE INDEX IF NOT EXISTS idx_positions_user_id ON public.positions(user_id);
 CREATE INDEX IF NOT EXISTS idx_positions_status ON public.positions(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON public.transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_binary_options_user_id ON public.binary_options(user_id);
 
 -- ============================================================
 -- HACER ADMIN AL PRIMER USUARIO (opcional, ejecutar manualmente)

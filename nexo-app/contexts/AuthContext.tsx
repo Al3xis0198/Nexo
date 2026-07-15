@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient()
 
     const loadProfile = async (userId: string) => {
-      const supabase = createClient()
+      // Reusar el cliente del useEffect (singleton, no crear uno nuevo)
       const [profileRes, roleRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
         supabase.from('user_roles').select('role').eq('user_id', userId),
@@ -128,7 +128,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Limpiar store ANTES de hacer logout para evitar flash de datos
       useTradingStore.getState().resetStore()
-      await fetch('/auth/logout', { method: 'POST' })
+      // Cerrar sesión en Supabase cliente (invalida el token JWT)
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      // Notificar al servidor para limpiar las cookies de sesión
+      await fetch('/auth/logout', { method: 'POST' }).catch(() => {})
     } catch (err) {
       console.error('[AuthContext] Sign out error:', err)
     }

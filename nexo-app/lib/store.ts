@@ -244,16 +244,23 @@ export const useTradingStore = create<TradingState>()(
       };
 
       try {
-        await Promise.all([
+        const [, txResult] = await Promise.all([
           (supabase as any).from('positions').update({ status: 'closed', close_price: closePrice, fixed_pnl: pnl, closed_at: new Date().toISOString() }).eq('id', id),
-          (supabase as any).from('transactions').insert(txInsert as any),
+          (supabase as any).from('transactions').insert(txInsert as any).select().single(),
           syncBalanceToSupabase(nextBalance)
         ]);
 
-        set({ balance: nextBalance, positions: state.positions.filter(p => p.id !== id) });
-        // Recargar las transacciones podría ser mejor, pero por optimismo inyectamos una local simulada
-        const optimisticTx: Transaction = { id: Math.random().toString(36).substring(7), type: 'trade_close', amount: pnl, date: new Date().toISOString(), description: txInsert.description, status: 'completed' };
-        set({ transactions: [optimisticTx, ...state.transactions] });
+        // Usar el ID real de Supabase en vez de uno aleatorio
+        const savedTx = (txResult as any)?.data;
+        const newTx: Transaction = savedTx
+          ? { id: savedTx.id, type: 'trade_close', amount: Number(savedTx.amount), date: savedTx.created_at, description: savedTx.description, status: 'completed' }
+          : { id: crypto.randomUUID(), type: 'trade_close', amount: pnl, date: new Date().toISOString(), description: txInsert.description, status: 'completed' };
+
+        set({
+          balance: nextBalance,
+          positions: state.positions.filter(p => p.id !== id),
+          transactions: [newTx, ...state.transactions],
+        });
       } catch (err) {
         console.error(err);
       }
@@ -297,7 +304,8 @@ export const useTradingStore = create<TradingState>()(
         ]);
         
         set({
-          balance: tx.userId ? state.balance : nextBalance, // Solo actualizar balance si estamos viendo nuestra cuenta
+          // Actualizar balance solo si es el usuario actual
+          balance: tx.userId === state._currentUserId ? nextBalance : state.balance,
           transactions: state.transactions.map(t => t.id === txId ? { ...t, status: 'completed', description: desc } : t)
         });
       } catch (err) { console.error(err) }
@@ -341,11 +349,81 @@ export const useTradingStore = create<TradingState>()(
     },
 
     adminAdjustBalance: async (userId, newBalance, note) => {
-      // Simplificado para la UI admin
+      const supabase = createClient();
+      try {
+        const txInsert = {
+          user_id: userId,
+          type: 'admin_adjustment' as const,
+          amount: newBalance,
+          description: note || 'Admin balance adjustment',
+          status: 'completed',
+        };
+        await Promise.all([
+          (supabase as any).from('profiles').update({ balance: newBalance }).eq('id', userId),
+          (supabase as any).from('transactions').insert(txInsert as any),
+        ]);
+        // Actualizar estado local si es el usuario actual
+        if (get()._currentUserId === userId) {
+          set({ balance: newBalance });
+        }
+      } catch (err) {
+        console.error('adminAdjustBalance error:', err);
+      }
     },
-    adminEditTransaction: async (txId, updates) => {},
-    adminAddTransaction: async (tx) => {},
-    adminDeleteTransaction: async (txId) => {},
+
+    adminEditTransaction: async (txId, updates) => {
+      const supabase = createClient();
+      try {
+        const updateData: Record<string, unknown> = {};
+        if (updates.amount    !== undefined) updateData.amount      = updates.amount;
+        if (updates.description !== undefined) updateData.description = updates.description;
+        if (updates.status    !== undefined) updateData.status      = updates.status;
+        if (updates.type      !== undefined) updateData.type        = updates.type;
+        await (supabase as any).from('transactions').update(updateData).eq('id', txId);
+        set({
+          transactions: get().transactions.map(t =>
+            t.id === txId ? { ...t, ...updates } : t
+          ),
+        });
+      } catch (err) {
+        console.error('adminEditTransaction error:', err);
+      }
+    },
+
+    adminAddTransaction: async (tx) => {
+      const supabase = createClient();
+      try {
+        const txInsert = {
+          user_id: tx.userId,
+          type: tx.type,
+          amount: tx.amount,
+          description: tx.description,
+          status: tx.status,
+        };
+        const { data }: any = await (supabase as any)
+          .from('transactions').insert(txInsert as any).select().single();
+        if (data) {
+          const newTx: Transaction = {
+            id: data.id, type: data.type, amount: Number(data.amount),
+            date: data.created_at, description: data.description,
+            status: data.status, userId: data.user_id,
+          };
+          set({ transactions: [newTx, ...get().transactions] });
+        }
+      } catch (err) {
+        console.error('adminAddTransaction error:', err);
+      }
+    },
+
+    adminDeleteTransaction: async (txId) => {
+      const supabase = createClient();
+      try {
+        await (supabase as any).from('transactions').delete().eq('id', txId);
+        set({ transactions: get().transactions.filter(t => t.id !== txId) });
+      } catch (err) {
+        console.error('adminDeleteTransaction error:', err);
+      }
+    },
 
     openBinaryOption: async (option) => {
       const state = get();
@@ -408,23 +486,35 @@ export const useTradingStore = create<TradingState>()(
         status: 'completed',
       };
 
-      // Optimistic lock: update local state immediately to prevent duplicate settlements
+      // Guardar estado previo para rollback si falla
+      const prevBinaryOptions = state.binaryOptions;
+      const prevBalance       = state.balance;
+
+      // Optimistic update: marcar como resuelta inmediatamente para evitar doble liquidación
       set({
         binaryOptions: state.binaryOptions.map(o => o.id === id ? { ...o, status, closePrice, pnl } : o)
       });
 
       try {
-        await Promise.all([
+        const [, txResult] = await Promise.all([
           (supabase as any).from('binary_options').update({ status, close_price: closePrice, pnl }).eq('id', id),
-          (supabase as any).from('transactions').insert(txInsert as any),
+          (supabase as any).from('transactions').insert(txInsert as any).select().single(),
           syncBalanceToSupabase(nextBalance)
         ]);
 
         set({ balance: nextBalance });
-        
-        const optimisticTx: Transaction = { id: Math.random().toString(36).substring(7), type: txInsert.type as any, amount: txInsert.amount, date: new Date().toISOString(), description: txInsert.description, status: 'completed' };
-        set({ transactions: [optimisticTx, ...state.transactions] });
-      } catch (err) { console.error(err) }
+
+        // Usar ID real de Supabase
+        const savedTx = (txResult as any)?.data;
+        const newTx: Transaction = savedTx
+          ? { id: savedTx.id, type: txInsert.type as any, amount: Number(savedTx.amount), date: savedTx.created_at, description: savedTx.description, status: 'completed' }
+          : { id: crypto.randomUUID(), type: txInsert.type as any, amount: txInsert.amount, date: new Date().toISOString(), description: txInsert.description, status: 'completed' };
+        set({ transactions: [newTx, ...state.transactions] });
+      } catch (err) {
+        console.error('settleBinaryOption error:', err);
+        // Rollback del estado optimista si falló la escritura en BD
+        set({ binaryOptions: prevBinaryOptions, balance: prevBalance });
+      }
     },
 
     approveWithdrawal: async (txId) => {

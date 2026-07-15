@@ -19,7 +19,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -33,10 +33,18 @@ export default function RegisterPage() {
     if (error) {
       toast.error(error.message);
       setLoading(false);
-    } else {
-      toast.success('Registration successful!');
+    } else if (data.session) {
+      // Sesión activa = confirmación de email desactivada en Supabase
+      toast.success('¡Registro exitoso! Redirigiendo...');
       router.push('/dashboard');
       router.refresh();
+    } else {
+      // Requiere confirmación de email
+      toast.success(
+        '¡Cuenta creada! Revisa tu correo electrónico y haz clic en el enlace de confirmación para activar tu cuenta.',
+        { duration: 8000 }
+      );
+      setLoading(false);
     }
   };
 

@@ -169,7 +169,7 @@ export default function Navbar() {
                     style={{ color: 'var(--text-secondary)' }}>
                     <Wallet size={15} /> {t('app.wallet')}
                   </Link>
-                  <Link href="/settings" onClick={() => setDropdownOpen(false)}
+                  <Link href="/settings?tab=profile" onClick={() => setDropdownOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[var(--bg-tertiary)]"
                     style={{ color: 'var(--text-secondary)' }}>
                     <User size={15} /> {t('app.profile')}

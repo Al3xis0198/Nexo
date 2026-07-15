@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+
 import {
   Users, ShieldAlert, Loader2, Search, RefreshCw,
   TrendingUp, DollarSign, Activity, Edit2, X, CheckCircle2,
@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import type { Profile } from '@/lib/supabase/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type AdminTab = 'users' | 'withdrawals' | 'deposits' | 'transactions' | 'config';
+type AdminTab = 'users' | 'withdrawals' | 'deposits' | 'transactions' | 'trading' | 'config';
 
 interface EditBalanceModal {
   user: Profile;
@@ -109,7 +109,6 @@ function StatusBadgeTx({ status }: { status: TransactionStatus }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { isAdmin, isLoading: authLoading } = useAuth();
-  const router = useRouter();
 
   const storeTransactions   = useTradingStore(s => s.transactions);
   const storePositions      = useTradingStore(s => s.positions);
@@ -122,7 +121,7 @@ export default function AdminDashboard() {
   const approveDeposit      = useTradingStore(s => s.approveDeposit);
   const rejectDeposit       = useTradingStore(s => s.rejectDeposit);
 
-  const [activeTab, setActiveTab]       = useState<'users'|'transactions'|'trading'|'config'>('users');
+  const [activeTab, setActiveTab]       = useState<AdminTab>('users');
   const [users, setUsers]               = useState<Profile[]>([]);
   const [adminTransactions, setAdminTransactions] = useState<Transaction[]>([]);
   const [adminBinaryOptions, setAdminBinaryOptions] = useState<any[]>([]);
@@ -157,9 +156,8 @@ export default function AdminDashboard() {
   const [cfgPayoutMin, setCfgPayoutMin] = useState('75');
   const [cfgPayoutMax, setCfgPayoutMax] = useState('92');
 
-  useEffect(() => {
-    if (!authLoading && !isAdmin) router.replace('/dashboard');
-  }, [isAdmin, authLoading, router]);
+  // Nota: la protección principal ya la hace admin/layout.tsx (Server Component).
+  // Este guard es solo un safety net para la hidratación del cliente.
 
   const fetchAdminData = useCallback(async () => {
     if (!isAdmin) return;

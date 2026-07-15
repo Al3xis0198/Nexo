@@ -95,7 +95,7 @@ AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_roles.user_id = p_user_id
-      AND user_roles.role = p_role
+      AND user_roles.role::text = p_role
   );
 $$;
 

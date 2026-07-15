@@ -12,7 +12,7 @@ const DEMO_MODE =
 const PUBLIC_ROUTES = ['/login', '/register', '/auth']
 const PROTECTED_PREFIXES = ['/dashboard', '/markets', '/trade', '/portfolio', '/wallet', '/admin', '/settings', '/binary']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // En modo demo dejamos pasar todo — el AuthContext maneja el estado local

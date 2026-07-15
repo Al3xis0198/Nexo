@@ -106,7 +106,7 @@ export const useTradingStore = create<TradingState>()(
     ...EMPTY_STATE,
 
     initForUser: async (userId: string, supabaseBalance: number) => {
-      set({ loadingData: true, _currentUserId: userId, balance: supabaseBalance });
+      set({ loadingData: true, _currentUserId: userId, balance: Number(supabaseBalance) });
       const supabase = createClient();
       
       try {
@@ -124,10 +124,10 @@ export const useTradingStore = create<TradingState>()(
           id: p.id,
           symbol: p.symbol,
           type: p.type as 'buy'|'sell',
-          amount: p.amount,
-          margin: p.amount / p.leverage, // Estimación simple
+          amount: Number(p.amount),
+          margin: Number(p.amount) / p.leverage, // Estimación simple
           fee: 0, // No está en BD
-          entryPrice: p.entry_price,
+          entryPrice: Number(p.entry_price),
           leverage: p.leverage,
           openedAt: p.opened_at,
         }));

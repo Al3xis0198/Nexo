@@ -11,7 +11,7 @@ export function formatCurrency(
   value: number,
   highPrecision = false
 ): string {
-  if (isNaN(value)) return '$0.00'
+  if (isNaN(value) || value === 0) return '$0.00'
 
   const absValue = Math.abs(value)
   const sign = value < 0 ? '-' : ''

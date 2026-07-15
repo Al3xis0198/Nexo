@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient()
 
-    const loadProfile = async (userId: string) => {
+    const loadProfile = async (userId: string, currentUser: any) => {
       // Reusar el cliente del useEffect (singleton, no crear uno nuevo)
       const [profileRes, roleRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).single(),
@@ -64,7 +64,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ── CLAVE: inicializar el store para ESTE usuario concreto ──────
         // Si es un usuario diferente al anterior, limpia todo el estado local
         // y carga el balance real desde Supabase
-        useTradingStore.getState().initForUser(userId, profileData.balance)
+        useTradingStore.getState().initForUser(userId, Number(profileData.balance))
+      } else if (currentUser) {
+        // Auto-crear perfil si no existe en BD (ej. cuentas creadas previo a migración)
+        try {
+          const defaultBalance = 10000.00
+          const { data: newProfile, error: insertErr } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              full_name: currentUser.user_metadata?.full_name || '',
+              email: currentUser.email || '',
+              balance: defaultBalance
+            } as any)
+            .select()
+            .single()
+
+          if (newProfile) {
+            setProfile(newProfile as Profile)
+            useTradingStore.getState().initForUser(userId, defaultBalance)
+          } else {
+            console.error('Failed to auto-create profile:', insertErr)
+          }
+        } catch (err) {
+          console.error('Error auto-creating profile:', err)
+        }
       }
       if (rRes.data) {
         const adminStatus = rRes.data.some((r: { role: string }) => r.role === 'admin')
@@ -81,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { user: currentUser } } = await supabase.auth.getUser()
         setUser(currentUser)
         if (currentUser) {
-          await loadProfile(currentUser.id)
+          await loadProfile(currentUser.id, currentUser)
         }
       } catch (err) {
         console.error('[AuthContext] Error loading user:', err)

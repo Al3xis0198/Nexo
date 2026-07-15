@@ -157,6 +157,28 @@ ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.binary_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
 
+-- ===== ELIMINAR POLÍTICAS EXISTENTES PARA EVITAR ERRORES =====
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
+
+DROP POLICY IF EXISTS "Users can view own roles" ON public.user_roles;
+DROP POLICY IF EXISTS "Admins can manage all roles" ON public.user_roles;
+
+DROP POLICY IF EXISTS "Users can manage own positions" ON public.positions;
+DROP POLICY IF EXISTS "Admins can manage all positions" ON public.positions;
+
+DROP POLICY IF EXISTS "Users can view own transactions" ON public.transactions;
+DROP POLICY IF EXISTS "Users can insert own transactions" ON public.transactions;
+DROP POLICY IF EXISTS "Admins can manage all transactions" ON public.transactions;
+
+DROP POLICY IF EXISTS "Users can manage own binary options" ON public.binary_options;
+DROP POLICY IF EXISTS "Admins can manage all binary options" ON public.binary_options;
+
+DROP POLICY IF EXISTS "Anyone can read platform settings" ON public.platform_settings;
+DROP POLICY IF EXISTS "Admins can manage platform settings" ON public.platform_settings;
+
 -- ===== POLÍTICAS: profiles =====
 CREATE POLICY "Users can view own profile"
   ON public.profiles FOR SELECT
